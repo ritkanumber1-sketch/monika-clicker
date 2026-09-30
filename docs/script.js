@@ -65,8 +65,11 @@ navBtns.forEach(btn => {
     });
 });
 
+// Надежный и быстрый обработчик кликов/тапов
 if (tapButton) {
-    tapButton.addEventListener('click', (event) => {
+    tapButton.addEventListener('pointerdown', (event) => {
+        event.preventDefault();
+        
         if (energy >= clickPower) {
             score += clickPower;
             energy -= clickPower;

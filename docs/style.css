@@ -1,3 +1,4 @@
+/* --- Сброс и базовые настройки --- */
 * {
     margin: 0;
     padding: 0;
@@ -126,6 +127,7 @@ body {
     transition: transform 0.08s ease, box-shadow 0.08s ease;
     outline: none;
     padding: 0;
+    touch-action: manipulation;
 }
 
 #tap-button:active {
@@ -137,7 +139,7 @@ body {
     width: 100%;
     height: 100%;
     object-fit: cover;
-    pointer-events: none;
+    pointer-events: none; /* Пропускаем клик сквозь картинку */
     position: absolute;
     top: 0;
     left: 0;
@@ -147,6 +149,7 @@ body {
 .button-text {
     position: relative;
     z-index: 2;
+    pointer-events: none; /* Пропускаем клик сквозь текст */
     font-size: 22px;
     font-weight: 900;
     color: #ffffff;
