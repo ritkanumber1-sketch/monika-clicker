@@ -1,4 +1,3 @@
-// Безопасная инициализация Telegram WebApp
 let tg = window.Telegram?.WebApp;
 if (tg) {
     try {
@@ -9,10 +8,9 @@ if (tg) {
     }
 }
 
-// Загрузка данных с защитой от сбоев
 let score = parseInt(localStorage.getItem('monika_score')) || 0;
 let maxEnergy = 1000;
-let energy = parseInt(localStorage.getItem('monika_energy')) ?? 1000;
+let energy = localStorage.getItem('monika_energy') !== null ? parseInt(localStorage.getItem('monika_energy')) : 1000;
 let clickPower = parseInt(localStorage.getItem('monika_power')) || 1;
 let upgradeCost = parseInt(localStorage.getItem('monika_cost')) || 50;
 
@@ -31,7 +29,6 @@ try {
     console.log(e);
 }
 
-// Элементы DOM
 const scoreElement = document.getElementById('score');
 const energyElement = document.getElementById('energy');
 const maxEnergyElement = document.getElementById('max-energy');
@@ -50,11 +47,9 @@ const tabContents = document.querySelectorAll('.tab-content');
 const skinBtns = document.querySelectorAll('.skin-btn');
 const socialBtns = document.querySelectorAll('.social-btn');
 
-// Первичный запуск
 applySkinImage(currentSkin);
 updateUI();
 
-// Переключение вкладок без багов
 navBtns.forEach(btn => {
     btn.addEventListener('click', () => {
         const targetTab = btn.dataset.tab;
@@ -70,7 +65,6 @@ navBtns.forEach(btn => {
     });
 });
 
-// Клик по Монике
 if (tapButton) {
     tapButton.addEventListener('click', (event) => {
         if (energy >= clickPower) {
@@ -88,7 +82,6 @@ if (tapButton) {
     });
 }
 
-// Прокачка клика
 if (upgradeBtn) {
     upgradeBtn.addEventListener('click', () => {
         if (score >= upgradeCost) {
@@ -106,7 +99,6 @@ if (upgradeBtn) {
     });
 }
 
-// Авто-фарм
 if (autoBtn) {
     autoBtn.addEventListener('click', () => {
         if (score >= autoCost) {
@@ -124,7 +116,6 @@ if (autoBtn) {
     });
 }
 
-// Смена скинов
 skinBtns.forEach(btn => {
     btn.addEventListener('click', () => {
         let skin = btn.dataset.skin;
@@ -166,7 +157,6 @@ function applySkinImage(skin) {
     }
 }
 
-// Задания соцсетей (с твоим YouTube-каналом)
 socialBtns.forEach(btn => {
     let network = btn.dataset.social;
     
@@ -179,12 +169,12 @@ socialBtns.forEach(btn => {
         if (socialStatus[network]) return;
 
         let links = {
-            tg: "https://t.me/твой_логин",
-            yt: "https://www.youtube.com/@RockyLenya", // Ссылка на твой YouTube-канал
-            tk: "https://tiktok.com/@твой_логин",
-            x: "https://x.com/твой_логин",
-            vk: "https://vk.com/твой_логин",
-            ds: "https://discord.gg/твой_код"
+            tg: "https://t.me/troy_login",
+            yt: "https://www.youtube.com/@RockyLenya",
+            tk: "https://tiktok.com/@troy_login",
+            x: "https://x.com/troy_login",
+            vk: "https://vk.com/troy_login",
+            ds: "https://discord.gg/troy_kod"
         };
 
         if (tg && tg.openLink) {
@@ -209,11 +199,10 @@ socialBtns.forEach(btn => {
     });
 });
 
-// Реферальная кнопка
 if (refBtn) {
     refBtn.addEventListener('click', () => {
         let botUsername = "TapMonika_bot";
-        let shareUrl = `https://t.me/share/url?url=https://t.me/${botUsername}&text=Тапай%20Монику%20вместе%20со%20мной!%20🐾`;
+        let shareUrl = `https://t.me/share/url?url=https://t.me/${botUsername}&text=Тапай%20вместе%20со%20мной!%20🐾`;
         
         if (tg && tg.openTelegramLink) {
             tg.openTelegramLink(shareUrl);
@@ -230,7 +219,6 @@ if (refBtn) {
     });
 }
 
-// Ежедневный бонус
 if (dailyBtn) {
     dailyBtn.addEventListener('click', () => {
         let now = Date.now();
@@ -253,7 +241,6 @@ if (dailyBtn) {
     });
 }
 
-// Обновление лиг
 function updateLeague() {
     if (!leagueName) return;
     if (score < 1000) {
@@ -271,7 +258,6 @@ function updateLeague() {
     }
 }
 
-// Обновление UI
 function updateUI() {
     if (scoreElement) scoreElement.textContent = score;
     if (energyElement) energyElement.textContent = energy;
@@ -301,7 +287,6 @@ function updateUI() {
     }
 }
 
-// Сохранение
 function saveData() {
     try {
         localStorage.setItem('monika_score', score);
@@ -318,7 +303,6 @@ function saveData() {
     }
 }
 
-// Всплывающие очки
 function showFloatingText(event, text) {
     if (!tapButton) return;
     const rect = tapButton.getBoundingClientRect();
@@ -338,14 +322,13 @@ function showFloatingText(event, text) {
     }, 700);
 }
 
-// Главный цикл (энергия и пассивный доход)
 setInterval(() => {
     if (passiveIncome > 0) {
         score += passiveIncome;
     }
 
     if (energy < maxEnergy) {
-        energy += 5;
+        energy += 10;
         if (energy > maxEnergy) {
             energy = maxEnergy;
         }

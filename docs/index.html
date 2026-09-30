@@ -3,36 +3,31 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>TapMonika — Telegram Mini App</title>
-    <!-- Подключаем стили -->
+    <title>TapMonika — Кликер</title>
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
 
-    <!-- Главный контейнер приложения -->
     <div class="game-container">
         
-        <!-- Шапка: Лиги, Статус и Счёт -->
+        <!-- Шапка -->
         <div class="header-info">
             <div class="league-badge">
-                <span id="league-icon">🏆</span>
+                <span id="league-icon">🥉</span>
                 <span id="league-name">Бронза</span>
             </div>
-            <div class="score-board">
-                <span class="coin-icon">🪙</span> <span id="score">0</span>
-            </div>
+            <div class="score-board">🪙 <span id="score">0</span></div>
         </div>
 
-        <!-- ВКЛАДКА 1: МОНИКА (Главная тапалка) -->
+        <!-- Тапалка -->
         <div id="tab-monika" class="tab-content active">
             <div class="character-container">
-                <button id="tap-button" aria-label="Тапнуть Монику">
-                    <!-- Картинка заполнена на всю кнопку от края до края -->
-                    <img id="monika-img" src="https://api.iconify.design/lucide:cat.svg?color=%23ffffff" alt="Моника">
+                <button id="tap-button" aria-label="Тапнуть персонажей">
+                    <img id="monika-img" src="https://api.iconify.design/lucide:cat.svg?color=%23ffffff" alt="Персонажи">
+                    <span class="button-text">Вилл, Инни и Моника</span>
                 </button>
             </div>
 
-            <!-- Продвинутая шкала энергии -->
             <div class="energy-wrapper">
                 <div class="energy-header">
                     <span>⚡ Энергия</span>
@@ -44,55 +39,40 @@
             </div>
         </div>
 
-        <!-- ВКЛАДКА 2: МАГАЗИН И ПРОКАЧКА -->
+        <!-- Магазин -->
         <div id="tab-shop" class="tab-content">
             <h2 class="section-title">🛒 Магазин улучшений</h2>
             <div class="shop-list">
                 <button id="upgrade-btn" class="action-card">
                     <div class="card-info">
-                        <span class="card-title">Сила клика</span>
-                        <span class="card-desc">Больше монет за один тап</span>
+                        <span class="card-title">Сила клика (+1)</span>
+                        <span class="card-desc">Больше монет за тап</span>
                     </div>
                     <span class="card-price">🪙 50</span>
                 </button>
                 <button id="auto-btn" class="action-card">
                     <div class="card-info">
-                        <span class="card-title">Авто-фарм</span>
-                        <span class="card-desc">Доход каждую секунду</span>
+                        <span class="card-title">Авто-фарм (+1/сек)</span>
+                        <span class="card-desc">Пассивный доход</span>
                     </div>
                     <span class="card-price">🪙 200</span>
                 </button>
             </div>
 
-            <h3 class="section-subtitle">Скины персонажа</h3>
+            <h3 class="section-subtitle">Скины</h3>
             <div class="skins-list">
-                <button class="skin-btn" data-skin="cat">
-                    <span>🐱 Обычный кот</span>
-                    <span class="skin-status">Выбрано</span>
-                </button>
-                <button class="skin-btn" data-skin="crown">
-                    <span>👑 Корона</span>
-                    <span class="skin-price">500 🪙</span>
-                </button>
-                <button class="skin-btn" data-skin="rocket">
-                    <span>🚀 Ракета</span>
-                    <span class="skin-price">1000 🪙</span>
-                </button>
+                <button class="skin-btn" data-skin="cat">🐱 Обычный кот</button>
+                <button class="skin-btn" data-skin="crown">👑 Корона (500 🪙)</button>
+                <button class="skin-btn" data-skin="rocket">🚀 Ракета (1000 🪙)</button>
             </div>
         </div>
 
-        <!-- ВКЛАДКА 3: ЗАДАНИЯ И СОЦСЕТИ -->
+        <!-- Задания -->
         <div id="tab-tasks" class="tab-content">
             <h2 class="section-title">📋 Задания и Бонусы</h2>
             <div class="shop-list">
-                <button id="daily-btn" class="bonus-card">
-                    <span>🎁 Ежедневный бонус</span>
-                    <span class="card-price">+500 🪙</span>
-                </button>
-                <button id="ref-btn" class="bonus-card">
-                    <span>👥 Пригласить друга</span>
-                    <span class="card-price">+400 🪙</span>
-                </button>
+                <button id="daily-btn" class="bonus-card">🎁 Ежедневный бонус (+500 🪙)</button>
+                <button id="ref-btn" class="bonus-card">👥 Пригласить друга (+400 🪙)</button>
                 
                 <h3 class="section-subtitle">Наши соцсети</h3>
                 <button class="social-btn" data-social="yt">📺 YouTube: @RockyLenya (+300 🪙)</button>
@@ -103,10 +83,9 @@
             </div>
         </div>
 
-        <!-- Контейнер для вылетающих цифр при клике -->
         <div id="floating-text-container"></div>
 
-        <!-- Нижняя панель навигации (Dock) -->
+        <!-- Навигация -->
         <nav class="nav-bar">
             <button class="nav-btn active" data-tab="monika">
                 <span class="nav-icon">🐾</span>
@@ -124,7 +103,6 @@
 
     </div>
 
-    <!-- Подключаем скрипт -->
     <script src="script.js"></script>
 </body>
 </html>
