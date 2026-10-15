@@ -2,107 +2,232 @@
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>TapMonika — Кликер</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>TapMonika — Clicker</title>
+    
+    <!-- Главный файл видит файл стилей -->
     <link rel="stylesheet" href="style.css">
+    
+    <!-- Подключение Telegram WebApp -->
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
 </head>
 <body>
-
-    <div class="game-container">
-        
-        <!-- Шапка -->
-        <div class="header-info">
-            <div class="league-badge">
-                <span id="league-icon">🥉</span>
-                <span id="league-name">Бронза</span>
-            </div>
-            <div class="score-board">🪙 <span id="score">0</span></div>
-        </div>
-
-        <!-- Тапалка -->
-        <div id="tab-monika" class="tab-content active">
-            <div class="character-container">
-                <button id="tap-button" aria-label="Тапнуть персонажей">
-                    <img id="monika-img" src="https://api.iconify.design/lucide:cat.svg?color=%23ffffff" alt="Персонажи">
-                    <span class="button-text">Вилл, Инни и Моника</span>
-                </button>
-            </div>
-
-            <div class="energy-wrapper">
-                <div class="energy-header">
-                    <span>⚡ Энергия</span>
-                    <span class="energy-text"><span id="energy">1000</span> / <span id="max-energy">1000</span></span>
+    <div class="app-container">
+        <!-- Шапка: Профили, Музыка, Персонажи, Баланс -->
+        <header class="header">
+            <div class="account-manager-bar">
+                <div class="account-select-wrap">
+                    <span class="account-label" data-i18n="profile_label">🐾 Кото-профиль:</span>
+                    <select id="account-select" class="account-dropdown"></select>
                 </div>
-                <div class="energy-bar-container">
-                    <div id="energy-bar"></div>
+                <div class="header-action-buttons">
+                    <button id="music-toggle-btn" class="account-action-btn music-btn" type="button" title="Музыка">🎵 Вкл</button>
+                    <button id="add-account-btn" class="account-action-btn" type="button" data-i18n="btn_new_profile">✨ Новый</button>
                 </div>
             </div>
-        </div>
 
-        <!-- Магазин -->
-        <div id="tab-shop" class="tab-content">
-            <h2 class="section-title">🛒 Магазин улучшений</h2>
-            <div class="shop-list">
-                <button id="upgrade-btn" class="action-card">
-                    <div class="card-info">
-                        <span class="card-title">Сила клика (+1)</span>
-                        <span class="card-desc">Больше монет за тап</span>
-                    </div>
-                    <span class="card-price">🪙 50</span>
+            <div class="character-switch-container">
+                <button id="char-monika-btn" class="char-avatar-btn active" type="button">
+                    <img src="images/monika.jpg" alt="Monika" class="char-circle-img">
+                    <span class="char-btn-name" data-i18n="char_monika">Монечка 🌸</span>
                 </button>
-                <button id="auto-btn" class="action-card">
-                    <div class="card-info">
-                        <span class="card-title">Авто-фарм (+1/сек)</span>
-                        <span class="card-desc">Пассивный доход</span>
-                    </div>
-                    <span class="card-price">🪙 200</span>
+                <button id="char-fortune-btn" class="char-avatar-btn" type="button">
+                    <img src="images/fortune.jpg" alt="Fortune" class="char-circle-img">
+                    <span class="char-btn-name" data-i18n="char_fortune">Фортуночка 🍀</span>
                 </button>
             </div>
 
-            <h3 class="section-subtitle">Скины</h3>
-            <div class="skins-list">
-                <button class="skin-btn" data-skin="cat">🐱 Обычный кот</button>
-                <button class="skin-btn" data-skin="crown">👑 Корона (500 🪙)</button>
-                <button class="skin-btn" data-skin="rocket">🚀 Ракета (1000 🪙)</button>
+            <div class="stats-card">
+                <div class="league-badge" id="player-league">Маленький Котёнок 🥉</div>
+                <div class="score-display">
+                    <span class="coin-icon">🪙</span>
+                    <span id="score-val">0</span>
+                </div>
+                <div class="stats-sub">
+                    <span><span data-i18n="stat_tap">Сила лапки:</span> <b id="tap-power-val">1</b></span>
+                    <span><span data-i18n="stat_passive">Мур-доход:</span> <b id="passive-income-val">0</b>/с</span>
+                </div>
             </div>
-        </div>
+        </header>
 
-        <!-- Задания -->
-        <div id="tab-tasks" class="tab-content">
-            <h2 class="section-title">📋 Задания и Бонусы</h2>
-            <div class="shop-list">
-                <button id="daily-btn" class="bonus-card">🎁 Ежедневный бонус (+500 🪙)</button>
-                <button id="ref-btn" class="bonus-card">👥 Пригласить друга (+400 🪙)</button>
+        <!-- Основная область с вкладками -->
+        <main class="main-content">
+            <!-- 1. Тапалка -->
+            <section id="tab-game" class="tab-section active">
+                <div class="clicker-area">
+                    <div class="tap-circle" id="tap-button">
+                        <img id="main-character-img" src="images/monika.jpg" alt="Cat">
+                    </div>
+                </div>
+
+                <div class="energy-container">
+                    <div class="energy-labels">
+                        <span data-i18n="energy_label">⚡ Бодрость хвостика</span>
+                        <span><b id="energy-val">1000</b> / <b id="max-energy-val">1000</b></span>
+                    </div>
+                    <div class="energy-bar-bg">
+                        <div class="energy-bar-fill" id="energy-bar"></div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- 2. Прокачка -->
+            <section id="tab-upgrades" class="tab-section">
+                <h2 class="section-title" data-i18n="title_upgrades">🌟 Кошачьи радости</h2>
+                <div class="upgrades-list">
+                    <div class="card-item">
+                        <div class="card-info">
+                            <span class="card-name" data-i18n="upg_tap_name">Мягкая подушечка (+1 лапка)</span>
+                            <span class="card-cost"><span data-i18n="cost_prefix">Вкусняшки:</span> <b id="tap-cost-val">20</b> 🪙</span>
+                        </div>
+                        <button class="action-btn" id="buy-tap-upgrade" type="button" data-i18n="btn_buy">Кусь! 🐾</button>
+                    </div>
+
+                    <div class="card-item">
+                        <div class="card-info">
+                            <span class="card-name" data-i18n="upg_auto_name">Мисочка с паштетом (+2/с)</span>
+                            <span class="card-cost"><span data-i18n="cost_prefix">Вкусняшки:</span> <b id="auto-cost-val">100</b> 🪙</span>
+                        </div>
+                        <button class="action-btn" id="buy-auto-upgrade" type="button" data-i18n="btn_buy">Кусь! 🐾</button>
+                    </div>
+
+                    <div class="card-item">
+                        <div class="card-info">
+                            <span class="card-name" data-i18n="upg_energy_name">Сладкий дневной сон (+500 сил)</span>
+                            <span class="card-cost"><span data-i18n="cost_prefix">Вкусняшки:</span> <b id="energy-cost-val">250</b> 🪙</span>
+                        </div>
+                        <button class="action-btn" id="buy-energy-upgrade" type="button" data-i18n="btn_buy">Кусь! 🐾</button>
+                    </div>
+
+                    <div class="card-item">
+                        <div class="card-info">
+                            <span class="card-name" data-i18n="upg_satsivi_name">🍗 Царское Сациви (+5 лапка, +10/с)</span>
+                            <span class="card-cost"><span data-i18n="cost_prefix">Вкусняшки:</span> <b id="satsivi-cost-val">500</b> 🪙</span>
+                        </div>
+                        <button class="action-btn" id="buy-satsivi-upgrade" type="button" data-i18n="btn_buy">Кусь! 🐾</button>
+                    </div>
+                </div>
+            </section>
+
+            <!-- 3. Карточки -->
+            <section id="tab-cards" class="tab-section">
+                <h2 class="section-title" data-i18n="title_cards">🃏 Легендарные Карточки</h2>
+                <p class="section-desc" data-i18n="cards_desc">Прокачивай карточки, открывай новые по условиям и получай мега-доход!</p>
                 
-                <h3 class="section-subtitle">Наши соцсети</h3>
-                <button class="social-btn" data-social="yt">📺 YouTube: @RockyLenya (+300 🪙)</button>
-                <button class="social-btn" data-social="tg">📢 Telegram-канал (+300 🪙)</button>
-                <button class="social-btn" data-social="vk">💬 ВКонтакте (+300 🪙)</button>
-                <button class="social-btn" data-social="x">🦤 X (Twitter) (+300 🪙)</button>
-                <button class="social-btn" data-social="ds">🎮 Discord (+300 🪙)</button>
-            </div>
-        </div>
+                <div class="card-categories-bar" style="display: flex; gap: 6px; margin-bottom: 12px; width: 100%; overflow-x: auto; padding-bottom: 4px;">
+                    <button class="action-btn card-category-btn active" data-cat="pr" type="button">PR & Team</button>
+                    <button class="action-btn card-category-btn" data-cat="markets" type="button">Markets</button>
+                    <button class="action-btn card-category-btn" data-cat="legal" type="button">Legal</button>
+                    <button class="action-btn card-category-btn" data-cat="specials" type="button">Specials</button>
+                </div>
 
-        <div id="floating-text-container"></div>
+                <div class="cards-grid" id="business-cards-container" style="display: flex; flex-direction: column; gap: 8px; width: 100%; max-height: 50vh; overflow-y: auto; padding: 4px;"></div>
+            </section>
 
-        <!-- Навигация -->
-        <nav class="nav-bar">
-            <button class="nav-btn active" data-tab="monika">
+            <!-- 4. Галерея -->
+            <section id="tab-gallery" class="tab-section">
+                <h2 class="section-title" data-i18n="title_gallery">📸 Альбом пушистиков</h2>
+                <p class="section-desc" data-i18n="gallery_desc">Открывай новые фоточки за золотые рыбки! Нажми, чтобы разблокировать.</p>
+                <div class="gallery-grid" id="gallery-container"></div>
+            </section>
+
+            <!-- 5. Друзья и Задания -->
+            <section id="tab-tasks" class="tab-section">
+                <div class="referral-box">
+                    <div class="ref-icon">🤝🐾</div>
+                    <h3 class="ref-title" data-i18n="ref_title">Пригласи пушистого друга!</h3>
+                    <p class="ref-desc" data-i18n="ref_desc">Отправь ссылку другу — получи +1000 🪙, когда он начнёт играть!</p>
+                    <div class="ref-input-group">
+                        <input type="text" id="ref-link-input" class="ref-input" readonly value="Загрузка ссылки...">
+                        <button id="copy-ref-btn" class="action-btn ref-copy-btn" type="button" data-i18n="btn_copy">Скопировать 📋</button>
+                    </div>
+                </div>
+
+                <h2 class="section-title" data-i18n="title_tasks" style="margin-top: 18px;">💌 Кошачья дружба</h2>
+                <p class="section-desc" data-i18n="tasks_desc">Подружись с нашими соцсетями и получи по +300 золотых рыбок 🪙!</p>
+                <div class="tasks-list">
+                    <button class="social-btn" data-social="yt" type="button" data-i18n="task_yt">📺 YouTube-канал (+300 🪙)</button>
+                    <button class="social-btn" data-social="tg" type="button" data-i18n="task_tg">📢 Telegram-канал (+300 🪙)</button>
+                    <button class="social-btn" data-social="twitch" type="button" data-i18n="task_twitch">🟣 Twitch-стрим (+300 🪙)</button>
+                    <button class="social-btn" data-social="ds" type="button" data-i18n="task_ds">🎮 Discord-сервер (+300 🪙)</button>
+                    <button class="social-btn" data-social="x" type="button" data-i18n="task_x">🦤 X (Twitter) (+300 🪙)</button>
+                </div>
+            </section>
+
+            <!-- 6. Коробка и Ежедневный вход -->
+            <section id="tab-chest" class="tab-section">
+                <h2 class="section-title" data-i18n="title_chest">🎁 Волшебная коробочка</h2>
+                <div class="chest-box">
+                    <div class="chest-icon">📦</div>
+                    <p class="chest-desc" data-i18n="chest_desc">Котики обожают коробки! Заглядывай каждые 12 часиков за подарками!</p>
+                    <button class="action-btn-large" id="open-chest-btn" type="button" data-i18n="btn_open_chest">Прыгнуть в коробку! 📦</button>
+                    <div id="chest-timer" class="chest-timer-text"></div>
+                </div>
+
+                <div class="chest-box" style="margin-top: 16px;">
+                    <h3 class="section-title" data-i18n="title_daily" style="font-size: 17px; color: #fbbf24; margin-bottom: 6px;">📅 Ежедневный вход</h3>
+                    <p class="chest-desc" data-i18n="daily_desc" style="margin-bottom: 12px;">Заходи каждый день и забирай растущие рыбные награды!</p>
+                    <button class="action-btn-large" id="claim-daily-btn" type="button" data-i18n="btn_claim_daily">Забрать награду 🐟</button>
+                    <div id="daily-timer" class="chest-timer-text"></div>
+                </div>
+            </section>
+
+            <!-- 7. Настройки -->
+            <section id="tab-settings" class="tab-section">
+                <h2 class="section-title" data-i18n="title_settings">🎀 Уютные настройки</h2>
+                <div class="settings-box">
+                    <div class="setting-row">
+                        <span class="setting-label" data-i18n="lang_label">💬 Язык мурлыканья:</span>
+                        <select id="lang-select" class="account-dropdown">
+                            <option value="ru">Русский 🇷🇺 (Мур-мур)</option>
+                            <option value="en">English 🇬🇧 (Cute Kitty)</option>
+                        </select>
+                    </div>
+                </div>
+            </section>
+        </main>
+
+        <!-- Нижнее меню навигации -->
+        <nav class="bottom-nav">
+            <button class="nav-btn active" data-tab="tab-game" type="button">
                 <span class="nav-icon">🐾</span>
-                <span>Моника</span>
+                <span class="nav-text" data-i18n="nav_game">Лапки</span>
             </button>
-            <button class="nav-btn" data-tab="shop">
-                <span class="nav-icon">🛒</span>
-                <span>Магазин</span>
+            <button class="nav-btn" data-tab="tab-upgrades" type="button">
+                <span class="nav-icon">⚡</span>
+                <span class="nav-text" data-i18n="nav_upg">Вкусняшки</span>
             </button>
-            <button class="nav-btn" data-tab="tasks">
+            <button class="nav-btn" data-tab="tab-cards" type="button">
+                <span class="nav-icon">🃏</span>
+                <span class="nav-text" data-i18n="nav_cards">Карточки</span>
+            </button>
+            <button class="nav-btn" data-tab="tab-gallery" type="button">
+                <span class="nav-icon">🖼️</span>
+                <span class="nav-text" data-i18n="nav_gal">Фоточки</span>
+            </button>
+            <button class="nav-btn" data-tab="tab-tasks" type="button">
                 <span class="nav-icon">📋</span>
-                <span>Задания</span>
+                <span class="nav-text" data-i18n="nav_tasks">Друзья</span>
+            </button>
+            <button class="nav-btn" data-tab="tab-chest" type="button">
+                <span class="nav-icon">🎁</span>
+                <span class="nav-text" data-i18n="nav_chest">Коробка</span>
+            </button>
+            <button class="nav-btn" data-tab="tab-settings" type="button">
+                <span class="nav-icon">⚙️</span>
+                <span class="nav-text" data-i18n="nav_set">Уют</span>
             </button>
         </nav>
-
     </div>
 
+    <!-- Аудиоплеер для фоновой музыки -->
+    <audio id="bg-music" src="audio/bgm.mp3" loop preload="auto"></audio>
+
+    <!-- Главный файл видит все остальные скрипты в нужном порядке -->
+    <script src="config.js"></script>
+    <script src="security.js"></script>
+    <script src="telegram.js"></script>
+    <script src="data.js"></script>
     <script src="script.js"></script>
 </body>
 </html>
