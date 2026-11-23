@@ -23,14 +23,14 @@
                 </div>
                 <div class="stats-sub">
                     <span>Открыто фоточек: <b id="album-progress-text">0%</b></span>
-                    <span>Нажми на фото, чтобы разблокировать</span>
+                    <button type="button" id="unlock-all-photos-btn" class="account-action-btn">✨ Открыть все (тест)</button>
                 </div>
             </div>
         </header>
 
         <main class="main-content">
-            <h2 class="section-title">📸 Альбом пушистиков</h2>
-            <p class="section-desc">Коллекция фоточек Монечки, Фортуночки / Фалтуны и Сараби.</p>
+            <h2 class="section-title">📸 Альбом пушистиков (24 фото)</h2>
+            <p class="section-desc">Все 24 фоточки Монечки, Фортуночки / Фалтуны и Сараби.</p>
             <div class="gallery-grid" id="album-page-grid"></div>
         </main>
     </div>
@@ -38,6 +38,8 @@
     <script src="data.js"></script>
     <script>
         const STORAGE_KEY = "tapMonika_profiles_v3";
+        const FALLBACK_IMAGES = ["images/monika.jpg", "images/fortune.jpg", "images/sarabi.jpg"];
+
         let profiles = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[{"name":"Котёнок №1","score":0,"unlockedPhotos":[0,1],"isNightMode":false}]');
         let p = profiles[0] || { score: 0, unlockedPhotos: [0, 1], isNightMode: false };
         p.unlockedPhotos = Array.isArray(p.unlockedPhotos) ? p.unlockedPhotos : [0, 1];
@@ -49,32 +51,64 @@
             localStorage.setItem(STORAGE_KEY, JSON.stringify(profiles));
         }
 
+        function getSafePhotosList() {
+            const base = (typeof galleryPhotos !== "undefined" && Array.isArray(galleryPhotos)) ? galleryPhotos : [];
+            const list = [];
+            for (let i = 0; i < 24; i++) {
+                const item = base[i] || {};
+                const fallbackSrc = FALLBACK_IMAGES[i % FALLBACK_IMAGES.length];
+                list.push({
+                    src: item.src || fallbackSrc,
+                    fallback: fallbackSrc,
+                    title: item.title || `Пушистик #${i + 1}`,
+                    cost: typeof item.cost === "number" ? item.cost : (i + 1) * 150
+                });
+            }
+            return list;
+        }
+
         function renderAlbum() {
-            const total = (typeof galleryPhotos !== "undefined" && Array.isArray(galleryPhotos)) ? galleryPhotos.length : 24;
+            const photos = getSafePhotosList();
             const unlocked = p.unlockedPhotos.length;
+
             document.getElementById("album-page-score").textContent = Math.floor(p.score || 0).toLocaleString();
             document.getElementById("album-unlocked-count").textContent = unlocked;
-            document.getElementById("album-progress-text").textContent = `${Math.min(100, Math.round((unlocked / Math.max(1, total)) * 100))}%`;
+            document.getElementById("album-progress-text").textContent = `${Math.min(100, Math.round((unlocked / photos.length) * 100))}%`;
 
             const grid = document.getElementById("album-page-grid");
             grid.innerHTML = "";
-            if (typeof galleryPhotos === "undefined") return;
 
-            galleryPhotos.forEach((photo, idx) => {
+            photos.forEach((photo, idx) => {
                 const isOpen = p.unlockedPhotos.includes(idx);
                 const box = document.createElement("div");
                 box.className = "gallery-item";
-                box.innerHTML = isOpen
-                    ? `<img src="${photo.src}" alt="${photo.title || 'Cat'}">`
-                    : `<div class="gallery-slot-placeholder"><span>🔒 ${photo.cost} 🪙</span><small>${photo.title || '#' + (idx + 1)}</small></div>`;
+
+                if (isOpen) {
+                    const img = document.createElement("img");
+                    img.src = photo.src;
+                    img.alt = photo.title;
+                    img.onerror = function () {
+                        if (this.src.endsWith(photo.fallback)) return;
+                        this.src = photo.fallback;
+                    };
+                    box.appendChild(img);
+                } else {
+                    box.innerHTML = `
+                        <div class="gallery-slot-placeholder">
+                            <span>🔒 ${photo.cost.toLocaleString()} 🪙</span>
+                            <small>${photo.title}</small>
+                        </div>
+                    `;
+                }
 
                 box.addEventListener("click", () => {
                     if (isOpen) {
-                        alert(`Фоточка: ${photo.title || `Фото #${idx + 1}`} 🐾`);
+                        alert(`📸 ${photo.title} открыто!`);
                         return;
                     }
                     if ((p.score || 0) < photo.cost) {
-                        return alert("Нужно больше рыбок, чтобы открыть фоточку! 😿");
+                        alert(`Нужно ${photo.cost.toLocaleString()} 🪙, чтобы открыть «${photo.title}»!`);
+                        return;
                     }
                     p.score -= photo.cost;
                     p.unlockedPhotos.push(idx);
@@ -85,6 +119,12 @@
                 grid.appendChild(box);
             });
         }
+
+        document.getElementById("unlock-all-photos-btn").addEventListener("click", () => {
+            p.unlockedPhotos = Array.from({ length: 24 }, (_, i) => i);
+            saveState();
+            renderAlbum();
+        });
 
         renderAlbum();
     </script>
