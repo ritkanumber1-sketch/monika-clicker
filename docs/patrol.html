@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>TapMonika — Ночной обход двора</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="themes.css">
+</head>
+<body>
+    <div class="app-container night-mode" id="app-root">
+        <header class="header">
+            <div class="account-manager-bar">
+                <a href="index.html" class="account-action-btn" style="text-decoration:none;">← На главную</a>
+                <b style="color:#c084fc;font-size:13px;">🌙 Сайт: Ночной обход</b>
+                <button type="button" id="patrol-all-btn" class="account-action-btn">✨ Обойти всех</button>
+            </div>
+
+            <div class="stats-card">
+                <div class="score-display">
+                    <span>🪙</span>
+                    <span id="patrol-page-score">0</span>
+                </div>
+                <div class="stats-sub">
+                    <span>Точек обхода: <b id="patrol-done-count">0</b> / 4</span>
+                    <span>Режим: Ночной дозор</span>
+                </div>
+            </div>
+        </header>
+
+        <main class="main-content">
+            <h2 class="section-title">🌙 Ночной обход двора</h2>
+            <p class="section-desc">Проверь пушистых друзей во дворе и получи бонусные рыбки.</p>
+
+            <div class="tasks-list" id="patrol-list">
+                <button type="button" class="social-btn patrol-point" data-bonus="150">🐈 Симбочка — утренний/вечерний привет (+150 🪙)</button>
+                <button type="button" class="social-btn patrol-point" data-bonus="150">🐈‍⬛ Серый — тихий обход у забора (+150 🪙)</button>
+                <button type="button" class="social-btn patrol-point" data-bonus="150">🐾 Бирючка старшая — проверка территории (+150 🪙)</button>
+                <button type="button" class="social-btn patrol-point" data-bonus="150">🐾 Бирючка младшая — быстрый кусь и бегом (+150 🪙)</button>
+            </div>
+        </main>
+    </div>
+
+    <script>
+        const STORAGE_KEY = "tapMonika_profiles_v3";
+        let profiles = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[{"name":"Котёнок №1","score":0,"isNightMode":true}]');
+        let p = profiles[0] || { score: 0, isNightMode: true };
+
+        function saveState() {
+            profiles[0] = p;
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(profiles));
+        }
+
+        function updatePatrolStats() {
+            const done = document.querySelectorAll(".patrol-point.completed").length;
+            document.getElementById("patrol-page-score").textContent = Math.floor(p.score || 0).toLocaleString();
+            document.getElementById("patrol-done-count").textContent = done;
+        }
+
+        document.querySelectorAll(".patrol-point").forEach(btn => {
+            btn.addEventListener("click", () => {
+                if (btn.classList.contains("completed")) return;
+                btn.classList.add("completed");
+                const bonus = Number(btn.dataset.bonus) || 150;
+                p.score = (p.score || 0) + bonus;
+                saveState();
+                updatePatrolStats();
+            });
+        });
+
+        document.getElementById("patrol-all-btn").addEventListener("click", () => {
+            document.querySelectorAll(".patrol-point:not(.completed)").forEach(btn => btn.click());
+        });
+
+        updatePatrolStats();
+    </script>
+</body>
+</html>

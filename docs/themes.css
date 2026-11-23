@@ -1,0 +1,75 @@
+/* ================= ФАЙЛ ТЕМ И ОФОРМЛЕНИЯ TAPMONIKA (themes.css) v1.0 ================= */
+
+:root {
+    --bg-main: #0f172a;
+    --bg-card: #1e293b;
+    --border-card: rgba(255, 255, 255, 0.12);
+    --mist-bg: rgba(255, 255, 255, 0.08);
+    --mist-border: rgba(255, 255, 255, 0.2);
+    --accent-pink: #f472b6;
+    --accent-purple: #9333ea;
+    --accent-gold: #fbbf24;
+    --accent-sky: #38bdf8;
+    --text-primary: #f8fafc;
+    --text-secondary: #94a3b8;
+}
+
+/* Дневная домашняя тема */
+.app-container {
+    background: linear-gradient(180deg, #131c36 0%, var(--bg-main) 100%);
+    color: var(--text-primary);
+}
+
+/* Ночной режим / уличный обход */
+.app-container.night-mode {
+    --bg-main: #050814;
+    --bg-card: rgba(15, 23, 42, 0.9);
+    --border-card: rgba(168, 85, 247, 0.38);
+    --mist-bg: rgba(139, 92, 246, 0.14);
+    --mist-border: rgba(192, 132, 252, 0.4);
+    background: radial-gradient(circle at top, #1b133d 0%, #050814 78%);
+}
+
+/* Туманная панель кнопок каналов */
+.mist-channels-panel {
+    background: var(--mist-bg);
+    backdrop-filter: blur(14px) saturate(150%);
+    -webkit-backdrop-filter: blur(14px) saturate(150%);
+    border: 1px solid var(--mist-border);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.18), 0 6px 18px rgba(0, 0, 0, 0.28);
+}
+
+.mist-chip {
+    color: var(--text-primary);
+    transition: transform 0.15s ease, background 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.mist-chip:hover {
+    background: rgba(244, 114, 182, 0.28);
+    border-color: rgba(244, 114, 182, 0.65);
+    box-shadow: 0 0 14px rgba(244, 114, 182, 0.35);
+    transform: translateY(-1px);
+}
+
+/* Карточки и блоки в активной теме */
+.stats-card,
+.card-item,
+.energy-container,
+.referral-box,
+.chest-box,
+.settings-box,
+.social-btn {
+    background: var(--bg-card);
+    border-color: var(--border-card);
+}
+
+/* Неоновый акцент в ночном режиме */
+.app-container.night-mode .tap-circle {
+    box-shadow: 0 0 36px rgba(168, 85, 247, 0.65), 0 0 18px rgba(244, 114, 182, 0.45);
+}
+
+.app-container.night-mode .mode-badge {
+    color: #e9d5ff;
+    background: rgba(168, 85, 247, 0.2);
+    border-color: rgba(192, 132, 252, 0.45);
+}

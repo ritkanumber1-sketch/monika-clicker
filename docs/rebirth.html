@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>TapMonika — Перерождения</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="themes.css">
+</head>
+<body>
+    <div class="app-container" id="app-root">
+        <header class="header">
+            <div class="account-manager-bar">
+                <a href="index.html" class="account-action-btn" style="text-decoration:none;">← На главную</a>
+                <b style="color:#818cf8;font-size:13px;">🌀 Сайт: Перерождения</b>
+                <span style="font-size:11px;color:#fbbf24;">Множитель: <b id="reb-top-mult">x1</b></span>
+            </div>
+
+            <div class="stats-card">
+                <div class="score-display">
+                    <span>🪙</span>
+                    <span id="reb-page-score">0</span>
+                </div>
+                <div class="stats-sub">
+                    <span>Уровень рестарта: <b id="reb-page-lvl">0</b></span>
+                    <span>Следующий порог: <b id="reb-page-cost">5 000</b> 🪙</span>
+                </div>
+            </div>
+        </header>
+
+        <main class="main-content">
+            <h2 class="section-title">🌀 Бесконечные перерождения</h2>
+            <div class="settings-box rebirth-card">
+                <p style="font-size:13px;color:#e2e8f0;">
+                    При перерождении текущий счёт и базовые апгрейды сбрасываются, а постоянный множитель лапки растёт!
+                </p>
+                <p>Текущий уровень: <b id="reb-card-lvl">0</b></p>
+                <p>Текущий множитель: <b id="reb-card-mult">x1</b></p>
+                <p class="rebirth-req">Стоимость перерождения: <b id="reb-card-cost">5 000</b> 🪙</p>
+                <button type="button" class="action-btn-large" id="reb-do-btn">Сделать перерождение! 🔄</button>
+            </div>
+        </main>
+    </div>
+
+    <script>
+        const STORAGE_KEY = "tapMonika_profiles_v3";
+        let profiles = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[{"name":"Котёнок №1","score":0,"tapPower":1,"passiveIncome":0,"rebirthLevel":0,"rebirthMultiplier":1,"isNightMode":false}]');
+        let p = profiles[0] || { score: 0, tapPower: 1, passiveIncome: 0, rebirthLevel: 0, rebirthMultiplier: 1, isNightMode: false };
+
+        document.getElementById("app-root").classList.toggle("night-mode", Boolean(p.isNightMode));
+
+        function saveState() {
+            profiles[0] = p;
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(profiles));
+        }
+
+        function updateRebirthView() {
+            const lvl = p.rebirthLevel || 0;
+            const mult = p.rebirthMultiplier || 1;
+            const cost = 5000 * (lvl + 1);
+
+            document.getElementById("reb-page-score").textContent = Math.floor(p.score || 0).toLocaleString();
+            document.getElementById("reb-page-lvl").textContent = lvl;
+            document.getElementById("reb-page-cost").textContent = cost.toLocaleString();
+            document.getElementById("reb-top-mult").textContent = `x${mult}`;
+            document.getElementById("reb-card-lvl").textContent = lvl;
+            document.getElementById("reb-card-mult").textContent = `x${mult}`;
+            document.getElementById("reb-card-cost").textContent = cost.toLocaleString();
+        }
+
+        document.getElementById("reb-do-btn").addEventListener("click", () => {
+            const lvl = p.rebirthLevel || 0;
+            const cost = 5000 * (lvl + 1);
+            if ((p.score || 0) < cost) {
+                return alert(`Нужно хотя бы ${cost.toLocaleString()} 🪙 для перерождения!`);
+            }
+            p.rebirthLevel = lvl + 1;
+            p.rebirthMultiplier = 1 + p.rebirthLevel;
+            p.score = 0;
+            p.tapPower = 1;
+            p.passiveIncome = 0;
+            saveState();
+            updateRebirthView();
+            alert(`Перерождение #${p.rebirthLevel} готово! Новый множитель: x${p.rebirthMultiplier}! 🌀`);
+        });
+
+        updateRebirthView();
+    </script>
+</body>
+</html>

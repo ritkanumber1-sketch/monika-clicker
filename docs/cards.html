@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>TapMonika — Легендарные Карточки</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="themes.css">
+</head>
+<body>
+    <div class="app-container" id="app-root">
+        <header class="header">
+            <div class="account-manager-bar">
+                <a href="index.html" class="account-action-btn" style="text-decoration:none;">← На главную</a>
+                <b style="color:#34d399;font-size:13px;">🃏 Сайт: Карточки</b>
+                <button type="button" id="buy-all-cards-btn" class="account-action-btn">⚡ Купить всё</button>
+            </div>
+
+            <div class="stats-card">
+                <div class="score-display">
+                    <span>🪙</span>
+                    <span id="cards-page-score">0</span>
+                </div>
+                <div class="stats-sub">
+                    <span>Пассивный доход: <b id="cards-page-passive">0</b>/с</span>
+                    <span>Категория: <b id="cards-page-cat-label">pr</b></span>
+                </div>
+            </div>
+
+            <div class="card-categories-bar">
+                <button type="button" class="action-btn card-category-btn active" data-cat="pr">PR & Team</button>
+                <button type="button" class="action-btn card-category-btn" data-cat="markets">Markets</button>
+                <button type="button" class="action-btn card-category-btn" data-cat="legal">Legal</button>
+                <button type="button" class="action-btn card-category-btn" data-cat="specials">Specials</button>
+            </div>
+        </header>
+
+        <main class="main-content">
+            <h2 class="section-title">🃏 Легендарные Карточки</h2>
+            <p class="section-desc">Прокачивай карточки и увеличивай пассивный мур-доход каждую секунду.</p>
+            <div class="cards-grid" id="cards-page-container"></div>
+        </main>
+    </div>
+
+    <script src="data.js"></script>
+    <script>
+        const STORAGE_KEY = "tapMonika_profiles_v3";
+        let profiles = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[{"name":"Котёнок №1","score":0,"passiveIncome":0,"cardLevels":{},"isNightMode":false}]');
+        let p = profiles[0] || { score: 0, passiveIncome: 0, cardLevels: {}, isNightMode: false };
+        p.cardLevels = p.cardLevels || {};
+        let currentCat = "pr";
+
+        document.getElementById("app-root").classList.toggle("night-mode", Boolean(p.isNightMode));
+
+        function saveState() {
+            profiles[0] = p;
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(profiles));
+        }
+
+        function getPrice(card) {
+            const lvl = p.cardLevels[card.id] || 0;
+            return Math.floor(card.baseCost * Math.pow(card.costMult, lvl));
+        }
+
+        function renderCardsList() {
+            document.getElementById("cards-page-score").textContent = Math.floor(p.score || 0).toLocaleString();
+            document.getElementById("cards-page-passive").textContent = Math.floor(p.passiveIncome || 0).toLocaleString();
+            document.getElementById("cards-page-cat-label").textContent = currentCat;
+
+            const container = document.getElementById("cards-page-container");
+            container.innerHTML = "";
+            if (typeof allHamsterCatCards === "undefined") return;
+
+            const filtered = allHamsterCatCards.filter(c => c.cat === currentCat);
+            filtered.forEach(card => {
+                const lvl = p.cardLevels[card.id] || 0;
+                const price = getPrice(card);
+                const locked = card.reqCard && ((p.cardLevels[card.reqCard] || 0) < card.reqLvl);
+
+                const item = document.createElement("div");
+                item.className = "card-item";
+                item.innerHTML = `
+                    <div class="card-left">
+                        <div class="card-fallback-icon">${card.fallback || "🃏"}</div>
+                        <div class="card-info">
+                            <span class="card-name">${card.name} (Ур. ${lvl})</span>
+                            <span class="card-cost">+${card.baseIncome}/с • Цена: ${price.toLocaleString()} 🪙</span>
+                            ${locked ? `<span style="font-size:10px;color:#f87171;">Нужен ур. ${card.reqLvl} карточки ${card.reqCard}</span>` : ""}
+                        </div>
+                    </div>
+                    <button type="button" class="action-btn" ${locked ? "disabled" : ""}>Купить</button>
+                `;
+
+                item.querySelector("button").addEventListener("click", () => {
+                    if (locked) return;
+                    if ((p.score || 0) < price) return alert("Не хватает рыбок! 😿");
+                    p.score -= price;
+                    p.cardLevels[card.id] = lvl + 1;
+                    p.passiveIncome = (p.passiveIncome || 0) + card.baseIncome;
+                    saveState();
+                    renderCardsList();
+                });
+
+                container.appendChild(item);
+            });
+        }
+
+        document.querySelectorAll(".card-category-btn").forEach(btn => {
+            btn.addEventListener("click", () => {
+                document.querySelectorAll(".card-category-btn").forEach(b => b.classList.remove("active"));
+                btn.classList.add("active");
+                currentCat = btn.dataset.cat;
+                renderCardsList();
+            });
+        });
+
+        document.getElementById("buy-all-cards-btn").addEventListener("click", () => {
+            if (typeof allHamsterCatCards === "undefined") return;
+            let bought = 0;
+            allHamsterCatCards.forEach(card => {
+                const lvl = p.cardLevels[card.id] || 0;
+                const locked = card.reqCard && ((p.cardLevels[card.reqCard] || 0) < card.reqLvl);
+                const price = getPrice(card);
+                if (!locked && (p.score || 0) >= price) {
+                    p.score -= price;
+                    p.cardLevels[card.id] = lvl + 1;
+                    p.passiveIncome = (p.passiveIncome || 0) + card.baseIncome;
+                    bought += 1;
+                }
+            });
+            saveState();
+            renderCardsList();
+            alert(bought > 0 ? `Куплено карточек: ${bought} шт.! ⚡` : "Пока не хватает монет на доступные карточки 😿");
+        });
+
+        setInterval(() => {
+            p.score = (p.score || 0) + (p.passiveIncome || 0);
+            saveState();
+            renderCardsList();
+        }, 1000);
+
+        renderCardsList();
+    </script>
+</body>
+</html>

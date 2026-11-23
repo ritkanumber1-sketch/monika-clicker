@@ -1,420 +1,863 @@
-// ================= ГЛАВНАЯ ЛОГИКА ИГРЫ (script.js) =================
+// ================= ПОЛНЫЙ ИГРОВОЙ СКРИПТ (script.js) v3.4 STUDIO EDITION =================
 
-let currentLang = localStorage.getItem('tapmonika_lang') || 'ru';
+window.score = 0;
+let tapPower = 1;
+let passiveIncome = 0;
+let energy = 1000;
+let maxEnergy = 1000;
+let energyRegenRate = 5;
+let tapUpgradeCost = 20;
+let autoUpgradeCost = 100;
+let energyUpgradeCost = 250;
+let regenUpgradeCost = 400;
+let rebirthLevel = 0;
+let rebirthMultiplier = 1;
+let unlockedPhotos = [0, 1];
+let cardLevels = {};
+let claimedSocials = {};
+let lastChestTime = 0;
+let isNightMode = false;
+let activityLog = ["Игра TapMonika запущена."];
 
-function applyLanguage(lang) {
-    if (!translations[lang]) lang = 'ru';
-    currentLang = lang;
-    localStorage.setItem('tapmonika_lang', lang);
-    const dict = translations[lang] || translations.ru;
+let profiles = [{
+    name: "Котёнок №1",
+    score: 0,
+    tapPower: 1,
+    passiveIncome: 0,
+    energy: 1000,
+    maxEnergy: 1000,
+    energyRegenRate: 5,
+    tapUpgradeCost: 20,
+    autoUpgradeCost: 100,
+    energyUpgradeCost: 250,
+    regenUpgradeCost: 400,
+    rebirthLevel: 0,
+    rebirthMultiplier: 1,
+    unlockedPhotos: [0, 1],
+    cardLevels: {},
+    claimedSocials: {},
+    lastChestTime: 0,
+    isNightMode: false,
+    activityLog: ["Игра TapMonika запущена."]
+}];
 
-    document.querySelectorAll('[data-i18n]').forEach(el => {
-        const key = el.getAttribute('data-i18n');
-        if (dict[key]) el.innerText = dict[key];
-    });
-
-    const langSelect = document.getElementById('lang-select');
-    if (langSelect) langSelect.value = lang;
-
-    updateUI();
-    updateInviteInput();
-}
-
-// Управление профилями
-let currentAccountId = localStorage.getItem('tapmonika_active_account') || 'acc_1';
-let accountsList = JSON.parse(localStorage.getItem('tapmonika_accounts_list') || '["acc_1"]');
-let accountNames = JSON.parse(localStorage.getItem('tapmonika_account_names') || '{"acc_1": "Главный Котик"}');
-
-function getDefaultState() {
-    return {
-        score: 0,
-        tapPower: 1,
-        passiveIncome: 0,
-        energy: 1000,
-        maxEnergy: 1000,
-        tapCost: 20,
-        autoCost: 100,
-        energyCost: 250,
-        satsiviCost: 500,
-        character: 'monika',
-        currentPhoto: 'images/monika.jpg',
-        unlockedPhotos: ['images/monika.jpg', 'images/fortune.jpg'],
-        cardLevels: {},
-        lastChestTime: 0,
-        lastDailyTime: 0,
-        dailyStreak: 0,
-        completedTasks: []
-    };
-}
-
-let state = getDefaultState();
+let currentProfileIndex = 0;
+let selectedCharacter = 'monika';
 let activeCardCategory = 'pr';
 
-function saveGame() {
-    if (typeof computeSecureHash === 'function') {
-        state.signature = computeSecureHash(state);
+const characters = [
+    { id: 'monika', name: 'Монечка 🌸', img: 'images/monika.jpg' },
+    { id: 'fortune', name: 'Фортуночка 🍀', img: 'images/fortune.jpg' },
+    { id: 'sarabi', name: 'Сараби 👑', img: 'images/sarabi.jpg' }
+];
+
+document.addEventListener('DOMContentLoaded', () => {
+    if (window.Telegram && window.Telegram.WebApp) {
+        window.Telegram.WebApp.ready();
+        window.Telegram.WebApp.expand();
     }
-    localStorage.setItem(`tapmonika_save_${currentAccountId}`, JSON.stringify(state));
-    localStorage.setItem('tapmonika_active_account', currentAccountId);
-    localStorage.setItem('tapmonika_accounts_list', JSON.stringify(accountsList));
-    localStorage.setItem('tapmonika_account_names', JSON.stringify(accountNames));
+
+    loadProfilesData();
+    updateCatAgeBanner();
+    applyThemeMode();
+    renderActivityLog();
+    initClicker();
+    initSpacebarBoost();
+    initTabs();
+    initUpgrades();
+    initCardCategories();
+    renderBusinessCards();
+    renderGallery();
+    initReferralCopy();
+    initSocialTasks();
+    initChest();
+    initProfilesAndCharacters();
+    initMusicPlayer();
+    initThemeAndBackup();
+    initLanguageSelector();
+
+    setInterval(() => {
+        const charBonus = (typeof catAgeInfo !== 'undefined' && catAgeInfo[selectedCharacter])
+            ? catAgeInfo[selectedCharacter].passiveBonus
+            : 0;
+        const totalPassive = passiveIncome + charBonus;
+        window.score += totalPassive;
+        energy = Math.min(maxEnergy, energy + energyRegenRate);
+        updateDisplay();
+        saveCurrentProfile();
+    }, 1000);
+});
+
+function pushLog(message) {
+    const timeStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    activityLog = [`[${timeStr}] ${message}`, ...activityLog].slice(0, 15);
+    const ticker = document.getElementById('event-ticker');
+    if (ticker) ticker.textContent = message;
+    renderActivityLog();
 }
 
-function loadGame() {
-    const saved = localStorage.getItem(`tapmonika_save_${currentAccountId}`);
-    if (saved) {
-        try {
-            state = { ...getDefaultState(), ...JSON.parse(saved) };
-            if (!state.unlockedPhotos) state.unlockedPhotos = ['images/monika.jpg', 'images/fortune.jpg'];
-            if (!state.cardLevels) state.cardLevels = {};
-        } catch (e) {
-            state = getDefaultState();
+function renderActivityLog() {
+    const listEl = document.getElementById('activity-log');
+    if (!listEl) return;
+    listEl.innerHTML = activityLog.map(entry => `<li>${entry}</li>`).join('');
+}
+
+function getEffectiveTapPower() {
+    const charBonus = (typeof catAgeInfo !== 'undefined' && catAgeInfo[selectedCharacter])
+        ? catAgeInfo[selectedCharacter].tapBonus
+        : 0;
+    const nightMult = isNightMode ? 2 : 1;
+    return (tapPower + charBonus) * rebirthMultiplier * nightMult;
+}
+
+function getLeagueName() {
+    const lang = document.getElementById('lang-select')?.value || 'ru';
+    if (window.score >= 50000) return lang === 'en' ? "Royal Cat 👑" : "Королевский Кот 👑";
+    if (window.score >= 10000) return lang === 'en' ? "Golden Paw 🥇" : "Золотая Лапка 🥇";
+    if (window.score >= 2000) return lang === 'en' ? "Purr Master 🥈" : "Мур-Мастер 🥈";
+    return translations[lang]?.league_kitten || "Маленький Котёнок 🥉";
+}
+
+function playCatMeow() {
+    const meowAudio = document.getElementById('meow-audio');
+    if (!meowAudio) return;
+    const customSrc = (typeof catAudioMap !== 'undefined' && catAudioMap[selectedCharacter])
+        ? catAudioMap[selectedCharacter]
+        : 'audio/meow.mp3';
+    if (meowAudio.getAttribute('src') !== customSrc) {
+        meowAudio.setAttribute('src', customSrc);
+    }
+    meowAudio.currentTime = 0;
+    meowAudio.play().catch(() => {});
+}
+
+function spawnFloatingGain(x, y, amount) {
+    const el = document.createElement('div');
+    el.className = 'floating-gain';
+    el.textContent = `+${Math.floor(amount).toLocaleString()}`;
+    el.style.left = `${x || window.innerWidth / 2}px`;
+    el.style.top = `${y || window.innerHeight / 2}px`;
+    document.body.appendChild(el);
+    setTimeout(() => el.remove(), 800);
+}
+
+function triggerTapAction(clientX, clientY, event) {
+    if (typeof window.validateTapEvent === 'function' && event && !window.validateTapEvent(event)) {
+        return;
+    }
+    if (energy < 1) return;
+
+    const tapButton = document.getElementById('tap-button');
+    energy = Math.max(0, energy - 1);
+    const gain = getEffectiveTapPower();
+    window.score += gain;
+
+    if (tapButton) {
+        tapButton.classList.add('tapped');
+        setTimeout(() => tapButton.classList.remove('tapped'), 140);
+    }
+
+    playCatMeow();
+    spawnFloatingGain(clientX, clientY, gain);
+    updateDisplay();
+}
+
+function initClicker() {
+    const tapButton = document.getElementById('tap-button');
+    if (!tapButton) return;
+
+    tapButton.addEventListener('click', (event) => {
+        triggerTapAction(event.clientX, event.clientY, event);
+    });
+}
+
+let baseTapPowerBeforeSpace = 1;
+function initSpacebarBoost() {
+    document.addEventListener('keydown', (e) => {
+        if ((e.code === 'Space' || e.key === ' ') && !e.repeat) {
+            e.preventDefault();
+            if (tapPower < 200000) {
+                baseTapPowerBeforeSpace = tapPower;
+                tapPower = baseTapPowerBeforeSpace * 200000;
+            } else {
+                tapPower *= 200000;
+            }
+            pushLog("Активирован супер-буст по Пробелу!");
+            triggerTapAction(window.innerWidth / 2, window.innerHeight / 2, null);
         }
-    } else {
-        state = getDefaultState();
-        saveGame();
-    }
-    recalculatePassiveIncome();
+    });
 }
 
-function recalculatePassiveIncome() {
-    let totalCardIncome = 0;
-    if (typeof allHamsterCatCards !== 'undefined') {
-        allHamsterCatCards.forEach(card => {
-            totalCardIncome += (state.cardLevels[card.id] || 0) * card.baseIncome;
+function updateDisplay() {
+    const scoreVal = document.getElementById('score-val');
+    const tapPowerVal = document.getElementById('tap-power-val');
+    const passiveIncomeVal = document.getElementById('passive-income-val');
+    const energyVal = document.getElementById('energy-val');
+    const maxEnergyVal = document.getElementById('max-energy-val');
+    const regenRateVal = document.getElementById('regen-rate-val');
+    const energyBar = document.getElementById('energy-bar');
+    const leagueEl = document.getElementById('player-league');
+
+    const tapCostEl = document.getElementById('tap-cost-val');
+    const autoCostEl = document.getElementById('auto-cost-val');
+    const energyCostEl = document.getElementById('energy-cost-val');
+    const regenCostEl = document.getElementById('regen-cost-val');
+
+    const charBonusPassive = (typeof catAgeInfo !== 'undefined' && catAgeInfo[selectedCharacter])
+        ? catAgeInfo[selectedCharacter].passiveBonus
+        : 0;
+
+    if (scoreVal) scoreVal.innerText = Math.floor(window.score).toLocaleString();
+    if (tapPowerVal) tapPowerVal.innerText = Math.floor(getEffectiveTapPower()).toLocaleString();
+    if (passiveIncomeVal) passiveIncomeVal.innerText = Math.floor(passiveIncome + charBonusPassive).toLocaleString();
+    if (energyVal) energyVal.innerText = Math.floor(energy);
+    if (maxEnergyVal) maxEnergyVal.innerText = maxEnergy;
+    if (regenRateVal) regenRateVal.innerText = energyRegenRate;
+    if (energyBar) energyBar.style.width = `${Math.max(0, Math.min(100, (energy / maxEnergy) * 100))}%`;
+    if (leagueEl) leagueEl.textContent = getLeagueName();
+
+    if (tapCostEl) tapCostEl.textContent = tapUpgradeCost.toLocaleString();
+    if (autoCostEl) autoCostEl.textContent = autoUpgradeCost.toLocaleString();
+    if (energyCostEl) energyCostEl.textContent = energyUpgradeCost.toLocaleString();
+    if (regenCostEl) regenCostEl.textContent = regenUpgradeCost.toLocaleString();
+
+    updateRebirthUI();
+    updateChestTimer();
+}
+
+function updateCatAgeBanner() {
+    const realAgeEl = document.getElementById('cat-real-age');
+    const humanAgeEl = document.getElementById('cat-human-age');
+    const lang = document.getElementById('lang-select')?.value || 'ru';
+    const info = (typeof catAgeInfo !== 'undefined' && catAgeInfo[selectedCharacter]) ? catAgeInfo[selectedCharacter] : null;
+    if (!info || !realAgeEl || !humanAgeEl) return;
+
+    if (lang === 'en') {
+        realAgeEl.textContent = info.realAgeEn;
+        humanAgeEl.textContent = info.humanAgeEn;
+    } else {
+        realAgeEl.textContent = info.realAgeRu;
+        humanAgeEl.textContent = info.humanAgeRu;
+    }
+}
+
+function applyThemeMode() {
+    const root = document.getElementById('app-root');
+    const btn = document.getElementById('theme-toggle-btn');
+    const modeBadge = document.getElementById('mode-indicator');
+    if (!root) return;
+
+    root.classList.toggle('night-mode', isNightMode);
+    if (btn) {
+        btn.textContent = isNightMode ? "☀️ День / Дом" : "🌙 Ночь / Обход";
+    }
+    if (modeBadge) {
+        modeBadge.textContent = isNightMode ? "🌙 Ночь (x2 тап)" : "☀️ День / Дом";
+    }
+}
+
+function initThemeAndBackup() {
+    const themeBtn = document.getElementById('theme-toggle-btn');
+    if (themeBtn) {
+        themeBtn.addEventListener('click', () => {
+            isNightMode = !isNightMode;
+            applyThemeMode();
+            pushLog(isNightMode ? "Включён ночной обход двора (бонус x2 к тапу)." : "Включён дневной домашний режим.");
+            updateDisplay();
+            saveCurrentProfile();
         });
     }
-    state.passiveIncome = (state.passiveIncomeFromUpgrades || 0) + totalCardIncome;
-}
 
-function renderAccountSelect() {
-    const select = document.getElementById('account-select');
-    if (!select) return;
-    select.innerHTML = '';
-    accountsList.forEach(id => {
-        const opt = document.createElement('option');
-        opt.value = id;
-        opt.textContent = accountNames[id] || id;
-        if (id === currentAccountId) opt.selected = true;
-        select.appendChild(opt);
-    });
-}
-
-function switchAccount(newId) {
-    saveGame();
-    currentAccountId = newId;
-    loadGame();
-    const mainImg = document.getElementById('main-character-img');
-    if (mainImg) mainImg.src = state.currentPhoto || 'images/monika.jpg';
-    updateUI();
-    renderGallery();
-    renderBusinessCards();
-    renderAccountSelect();
-    updateInviteInput();
-}
-
-function createNewAccount() {
-    const dict = translations[currentLang] || translations.ru;
-    const name = prompt(dict.prompt_profile, `${dict.default_profile_name} ${accountsList.length + 1}`);
-    if (!name || !name.trim()) return;
-    const newId = 'acc_' + Date.now();
-    accountsList.push(newId);
-    accountNames[newId] = name.trim();
-    currentAccountId = newId;
-    state = getDefaultState();
-    saveGame();
-    renderAccountSelect();
-    renderGallery();
-    renderBusinessCards();
-    const mainImg = document.getElementById('main-character-img');
-    if (mainImg) mainImg.src = 'images/monika.jpg';
-    updateUI();
-    updateInviteInput();
-}
-
-// Музыка
-let isMusicPlaying = false;
-const bgMusic = document.getElementById('bg-music');
-const musicToggleBtn = document.getElementById('music-toggle-btn');
-function toggleMusic() {
-    if (!bgMusic) return;
-    if (isMusicPlaying) {
-        bgMusic.pause();
-        isMusicPlaying = false;
-        if (musicToggleBtn) { musicToggleBtn.classList.remove('active'); musicToggleBtn.innerText = '🔇 Выкл'; }
-    } else {
-        bgMusic.volume = 0.35;
-        bgMusic.play().then(() => {
-            isMusicPlaying = true;
-            if (musicToggleBtn) { musicToggleBtn.classList.add('active'); musicToggleBtn.innerText = '🎵 Вкл'; }
-        }).catch(() => {});
-    }
-}
-
-// Рефералы
-function getInviteLink() {
-    return `https://t.me/TapMonikaBot?startapp=ref_${currentAccountId}`;
-}
-function updateInviteInput() {
-    const input = document.getElementById('ref-link-input');
-    if (input) input.value = getInviteLink();
-}
-function copyInviteLink() {
-    const link = getInviteLink();
-    const dict = translations[currentLang] || translations.ru;
-    navigator.clipboard?.writeText(link).then(() => alert(dict.link_copied)).catch(() => {});
-}
-
-// Переключение персонажей (Моника / Фортуна)
-function selectCharacter(name) {
-    state.character = name;
-    document.querySelectorAll('.char-avatar-btn').forEach(btn => btn.classList.remove('active'));
-
-    const imgEl = document.getElementById('main-character-img');
-    if (!imgEl) return;
-
-    if (name === 'monika') {
-        document.getElementById('char-monika-btn')?.classList.add('active');
-        state.currentPhoto = 'images/monika.jpg';
-        imgEl.src = 'images/monika.jpg';
-    } else {
-        document.getElementById('char-fortune-btn')?.classList.add('active');
-        state.currentPhoto = 'images/fortune.jpg';
-        imgEl.src = 'images/fortune.jpg';
-    }
-    saveGame();
-}
-
-// Галерея
-function renderGallery() {
-    const container = document.getElementById('gallery-container');
-    if (!container || typeof galleryPhotos === 'undefined') return;
-    container.innerHTML = '';
-    galleryPhotos.forEach((photoObj, index) => {
-        const isUnlocked = state.unlockedPhotos.includes(photoObj.src) || photoObj.cost === 0;
-        const item = document.createElement('div');
-        item.className = `gallery-item ${isUnlocked ? '' : 'locked'}`;
-        item.innerHTML = isUnlocked ? `<img src="${photoObj.src}">` : `<div style="display:flex; flex-direction:column; align-items:center; justify-content:center; width:100%; height:100%; background:#111827;"><span>🔒</span><span style="font-size:10px; color:#fbbf24;">${photoObj.cost} 🪙</span></div>`;
-        item.addEventListener('click', () => openPhotoModal(photoObj, isUnlocked));
-        container.appendChild(item);
-    });
-}
-
-function openPhotoModal(photoObj, isUnlocked) {
-    let modal = document.getElementById('photo-modal');
-    if (!modal) {
-        modal = document.createElement('div');
-        modal.id = 'photo-modal';
-        modal.style.cssText = 'display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.85); z-index:1000; justify-content:center; align-items:center; flex-direction:column; padding:20px;';
-        modal.innerHTML = `<div style="display:flex; flex-direction:column; align-items:center;"><img id="modal-img" style="max-width:100%; max-height:70vh; border-radius:14px; border:3px solid #f59e0b;"><div id="modal-info" style="margin-top:15px; color:#fbbf24; font-weight:bold;"></div><button id="modal-action-btn" class="action-btn" style="margin-top:15px;">Закрыть</button></div>`;
-        document.body.appendChild(modal);
-        modal.addEventListener('click', (e) => { if (e.target === modal) modal.style.display = 'none'; });
-    }
-    modal.querySelector('#modal-img').src = photoObj.src;
-    modal.style.display = 'flex';
-    const dict = translations[currentLang] || translations.ru;
-    const btn = modal.querySelector('#modal-action-btn');
-    if (isUnlocked) {
-        modal.querySelector('#modal-info').innerText = "Милый котик! 😻";
-        btn.innerText = "На главный экран 🐾";
-        btn.onclick = () => { state.currentPhoto = photoObj.src; document.getElementById('main-character-img').src = photoObj.src; saveGame(); alert(dict.photo_set); modal.style.display = 'none'; };
-    } else {
-        modal.querySelector('#modal-info').innerText = `Заблокировано! Цена: ${photoObj.cost} 🪙`;
-        btn.innerText = "Разблокировать 🔓";
-        btn.onclick = () => {
-            if (state.score >= photoObj.cost) {
-                state.score -= photoObj.cost;
-                state.unlockedPhotos.push(photoObj.src);
-                saveGame(); renderGallery(); updateUI(); alert(dict.photo_unlocked); modal.style.display = 'none';
-            } else { alert(dict.no_money); }
-        };
-    }
-}
-
-// Карточки
-function renderBusinessCards() {
-    const container = document.getElementById('business-cards-container');
-    if (!container || typeof allHamsterCatCards === 'undefined') return;
-    container.innerHTML = '';
-    const dict = translations[currentLang] || translations.ru;
-    allHamsterCatCards.filter(c => c.cat === activeCardCategory).forEach(card => {
-        const lvl = state.cardLevels[card.id] || 0;
-        const cost = Math.floor(card.baseCost * Math.pow(card.costMult, lvl));
-        const income = lvl * card.baseIncome;
-        let unlocked = true, reqName = '';
-        if (card.reqCard) {
-            const reqObj = allHamsterCatCards.find(c => c.id === card.reqCard);
-            if (reqObj && (state.cardLevels[card.reqCard] || 0) < card.reqLvl) { unlocked = false; reqName = reqObj.name; }
-        }
-        const el = document.createElement('div');
-        el.className = 'card-item';
-        el.style.cssText = 'display:flex; justify-content:space-between; align-items:center; background:#111827; border:1px solid #334155; border-radius:12px; padding:12px 16px; margin-bottom:8px; width:100%;';
-        if (unlocked) {
-            el.innerHTML = `<div style="display:flex; flex-direction:column; gap:4px;"><span style="font-weight:700; color:#f8fafc; font-size:14px;">${card.name}</span><span style="font-size:11px; color:#94a3b8;">Ур. <b>${lvl}</b> | Доход: +<b>${income}</b>/с</span><span style="font-size:11px; color:#fbbf24;">Цена: <b>${cost}</b> 🪙</span></div><button class="action-btn" style="padding:6px 12px; font-size:12px;">${dict.btn_upgrade_card}</button>`;
-            el.querySelector('button').addEventListener('click', () => {
-                if (state.score >= cost) {
-                    state.score -= cost;
-                    state.cardLevels[card.id] = lvl + 1;
-                    recalculatePassiveIncome();
-                    saveGame(); updateUI(); renderBusinessCards();
-                } else { alert(dict.no_money); }
+    const exportBtn = document.getElementById('export-save-btn');
+    if (exportBtn) {
+        exportBtn.addEventListener('click', () => {
+            const payload = JSON.stringify({
+                score: Math.floor(window.score),
+                tapPower,
+                passiveIncome,
+                maxEnergy,
+                energyRegenRate,
+                rebirthLevel,
+                rebirthMultiplier,
+                unlockedPhotos,
+                cardLevels
             });
-        } else {
-            el.style.opacity = '0.6';
-            el.innerHTML = `<div style="display:flex; flex-direction:column; gap:4px;"><span style="font-weight:700; color:#94a3b8; font-size:14px;">🔒 ${card.name}</span><span style="font-size:11px; color:#ef4444;">Требуется: ${reqName} (Ур. ${card.reqLvl})</span></div><span style="font-size:11px; color:#64748b;">Закрыто</span>`;
-        }
-        container.appendChild(el);
-    });
-}
+            navigator.clipboard?.writeText(payload).catch(() => {});
+            pushLog("Код сохранения скопирован в буфер обмена.");
+            alert("Код сохранения скопирован! 📋");
+        });
+    }
 
-function getLeague(score) {
-    const t = translations[currentLang] || translations.ru;
-    if (score >= 500000) return t.league_legend;
-    if (score >= 100000) return t.league_diamond;
-    if (score >= 25000) return t.league_plat;
-    if (score >= 5000) return t.league_gold;
-    if (score >= 1000) return t.league_silver;
-    return t.league_bronze;
-}
+    const importBtn = document.getElementById('import-save-btn');
+    if (importBtn) {
+        importBtn.addEventListener('click', () => {
+            const raw = prompt("Вставь сохранённый код профиля:");
+            if (!raw) return;
+            try {
+                const parsed = JSON.parse(raw);
+                if (typeof parsed.score === 'number') window.score = Math.max(0, parsed.score);
+                if (typeof parsed.tapPower === 'number') tapPower = Math.max(1, parsed.tapPower);
+                if (typeof parsed.passiveIncome === 'number') passiveIncome = Math.max(0, parsed.passiveIncome);
+                if (typeof parsed.maxEnergy === 'number') maxEnergy = Math.max(1000, parsed.maxEnergy);
+                if (typeof parsed.energyRegenRate === 'number') energyRegenRate = Math.max(5, parsed.energyRegenRate);
+                if (typeof parsed.rebirthLevel === 'number') rebirthLevel = Math.max(0, parsed.rebirthLevel);
+                if (typeof parsed.rebirthMultiplier === 'number') rebirthMultiplier = Math.max(1, parsed.rebirthMultiplier);
+                if (Array.isArray(parsed.unlockedPhotos)) unlockedPhotos = parsed.unlockedPhotos;
+                if (parsed.cardLevels && typeof parsed.cardLevels === 'object') cardLevels = parsed.cardLevels;
+                energy = maxEnergy;
+                renderBusinessCards();
+                renderGallery();
+                updateDisplay();
+                saveCurrentProfile();
+                pushLog("Прогресс успешно загружен из кода сохранения.");
+                alert("Сохранение загружено! ✨");
+            } catch (e) {
+                alert("Некорректный код сохранения!");
+            }
+        });
+    }
 
-function updateUI() {
-    document.getElementById('score-val').innerText = Math.floor(state.score);
-    document.getElementById('tap-power-val').innerText = state.tapPower;
-    document.getElementById('passive-income-val').innerText = state.passiveIncome;
-    document.getElementById('energy-val').innerText = Math.floor(state.energy);
-    document.getElementById('max-energy-val').innerText = state.maxEnergy;
-    document.getElementById('player-league').innerText = getLeague(state.score);
-    document.getElementById('energy-bar').style.width = `${Math.max(0, Math.min(100, (state.energy / state.maxEnergy) * 100))}%`;
-    document.getElementById('tap-cost-val').innerText = state.tapCost;
-    document.getElementById('auto-cost-val').innerText = state.autoCost;
-    document.getElementById('energy-cost-val').innerText = state.energyCost;
-    document.getElementById('satsivi-cost-val').innerText = state.satsiviCost;
-}
-
-function playMeowVoice() {
-    if ('speechSynthesis' in window) {
-        window.speechSynthesis.cancel();
-        const u = new SpeechSynthesisUtterance('мяу');
-        u.lang = 'ru-RU'; u.pitch = 1.8; u.rate = 1.3;
-        window.speechSynthesis.speak(u);
+    const resetBtn = document.getElementById('reset-profile-btn');
+    if (resetBtn) {
+        resetBtn.addEventListener('click', () => {
+            if (!confirm("Обнулить прогресс текущего профиля?")) return;
+            window.score = 0;
+            tapPower = 1;
+            passiveIncome = 0;
+            energy = 1000;
+            maxEnergy = 1000;
+            energyRegenRate = 5;
+            tapUpgradeCost = 20;
+            autoUpgradeCost = 100;
+            energyUpgradeCost = 250;
+            regenUpgradeCost = 400;
+            rebirthLevel = 0;
+            rebirthMultiplier = 1;
+            unlockedPhotos = [0, 1];
+            cardLevels = {};
+            claimedSocials = {};
+            lastChestTime = 0;
+            renderBusinessCards();
+            renderGallery();
+            updateDisplay();
+            saveCurrentProfile();
+            pushLog("Текущий профиль сброшен до стартовых значений.");
+        });
     }
 }
 
-// Клик с анимацией увеличения на 1.25
-function handleTap(event) {
-    if (typeof validateTapEvent === 'function' && !validateTapEvent(event)) return;
-    if (state.energy < state.tapPower) return;
+function initTabs() {
+    const navButtons = document.querySelectorAll('.nav-btn');
+    const tabSections = document.querySelectorAll('.tab-section');
 
-    state.energy -= state.tapPower;
-    state.score += state.tapPower;
-
-    const mainImg = document.getElementById('main-character-img');
-    if (mainImg) {
-        mainImg.style.transform = 'scale(1.25)';
-        setTimeout(() => {
-            mainImg.style.transform = 'scale(1)';
-        }, 90);
-    }
-
-    playMeowVoice();
-    updateUI();
-    saveGame();
+    navButtons.forEach(btn => {
+        btn.addEventListener('click', () => {
+            const targetTabId = btn.getAttribute('data-tab');
+            navButtons.forEach(b => b.classList.remove('active'));
+            tabSections.forEach(s => s.classList.remove('active'));
+            btn.classList.add('active');
+            const targetSection = document.getElementById(targetTabId);
+            if (targetSection) targetSection.classList.add('active');
+        });
+    });
 }
 
-// Запуск при загрузке страницы
-document.addEventListener('DOMContentLoaded', () => {
-    loadGame();
-    renderAccountSelect();
-    renderGallery();
-    renderBusinessCards();
+function initUpgrades() {
+    const buyTapBtn = document.getElementById('buy-tap-upgrade');
+    if (buyTapBtn) {
+        buyTapBtn.addEventListener('click', () => {
+            if (window.score >= tapUpgradeCost) {
+                window.score -= tapUpgradeCost;
+                tapPower += 1;
+                tapUpgradeCost = Math.floor(tapUpgradeCost * 1.45);
+                pushLog("Куплена мягкая подушечка (+1 к силе лапки).");
+                updateDisplay();
+                saveCurrentProfile();
+            } else {
+                alert("Мяу! Не хватает рыбок! 😿");
+            }
+        });
+    }
 
-    const mainImg = document.getElementById('main-character-img');
-    if (mainImg) mainImg.src = state.currentPhoto || 'images/monika.jpg';
+    const buyAutoBtn = document.getElementById('buy-auto-upgrade');
+    if (buyAutoBtn) {
+        buyAutoBtn.addEventListener('click', () => {
+            if (window.score >= autoUpgradeCost) {
+                window.score -= autoUpgradeCost;
+                passiveIncome += 2;
+                autoUpgradeCost = Math.floor(autoUpgradeCost * 1.5);
+                pushLog("Куплена мисочка с паштетом (+2/с к мур-доходу).");
+                updateDisplay();
+                saveCurrentProfile();
+            } else {
+                alert("Мяу! Не хватает рыбок! 😿");
+            }
+        });
+    }
 
-    applyLanguage(currentLang);
-    updateInviteInput();
+    const buyEnergyBtn = document.getElementById('buy-energy-upgrade');
+    if (buyEnergyBtn) {
+        buyEnergyBtn.addEventListener('click', () => {
+            if (window.score >= energyUpgradeCost) {
+                window.score -= energyUpgradeCost;
+                maxEnergy += 250;
+                energy = maxEnergy;
+                energyUpgradeCost = Math.floor(energyUpgradeCost * 1.55);
+                pushLog("Куплен большой лежак (+250 к бодрости).");
+                updateDisplay();
+                saveCurrentProfile();
+            } else {
+                alert("Мяу! Не хватает рыбок на лежак! 😿");
+            }
+        });
+    }
 
-    musicToggleBtn?.addEventListener('click', (e) => { e.stopPropagation(); toggleMusic(); });
-    document.getElementById('lang-select')?.addEventListener('change', (e) => applyLanguage(e.target.value));
-    document.getElementById('account-select')?.addEventListener('change', (e) => switchAccount(e.target.value));
-    document.getElementById('add-account-btn')?.addEventListener('click', createNewAccount);
-    document.getElementById('copy-ref-btn')?.addEventListener('click', copyInviteLink);
-    
-    document.getElementById('tap-button')?.addEventListener('pointerdown', handleTap);
+    const buyRegenBtn = document.getElementById('buy-regen-upgrade');
+    if (buyRegenBtn) {
+        buyRegenBtn.addEventListener('click', () => {
+            if (window.score >= regenUpgradeCost) {
+                window.score -= regenUpgradeCost;
+                energyRegenRate += 3;
+                regenUpgradeCost = Math.floor(regenUpgradeCost * 1.6);
+                pushLog("Куплена мятная игрушка (+3 к регенерации бодрости).");
+                updateDisplay();
+                saveCurrentProfile();
+            } else {
+                alert("Мяу! Не хватает рыбок на игрушку! 😿");
+            }
+        });
+    }
+}
 
-    // Кнопки переключения персонажей
-    document.getElementById('char-monika-btn')?.addEventListener('click', () => selectCharacter('monika'));
-    document.getElementById('char-fortune-btn')?.addEventListener('click', () => selectCharacter('fortune'));
+function getRebirthCost() {
+    return 5000 * (rebirthLevel + 1);
+}
 
-    document.getElementById('buy-tap-upgrade')?.addEventListener('click', () => {
-        const dict = translations[currentLang] || translations.ru;
-        if (state.score >= state.tapCost) {
-            state.score -= state.tapCost;
-            state.tapPower += 1;
-            state.tapCost = Math.floor(state.tapCost * 1.8);
-            updateUI(); saveGame();
-        } else alert(dict.no_money);
-    });
+function updateRebirthUI() {
+    const lvlEl = document.getElementById('rebirthCountText');
+    const multEl = document.getElementById('currentMultiplierText');
+    const costEl = document.getElementById('rebirthCostText');
+    if (lvlEl) lvlEl.textContent = rebirthLevel;
+    if (multEl) multEl.textContent = `x${rebirthMultiplier}`;
+    if (costEl) costEl.textContent = getRebirthCost().toLocaleString();
+}
 
-    document.getElementById('buy-auto-upgrade')?.addEventListener('click', () => {
-        const dict = translations[currentLang] || translations.ru;
-        if (state.score >= state.autoCost) {
-            state.score -= state.autoCost;
-            state.passiveIncomeFromUpgrades = (state.passiveIncomeFromUpgrades || 0) + 2;
-            recalculatePassiveIncome();
-            state.autoCost = Math.floor(state.autoCost * 2);
-            updateUI(); saveGame();
-        } else alert(dict.no_money);
-    });
+window.doRebirth = function() {
+    const cost = getRebirthCost();
+    if (window.score < cost) {
+        alert(`Нужно хотя бы ${cost.toLocaleString()} 🪙 для перерождения!`);
+        return;
+    }
+    rebirthLevel += 1;
+    rebirthMultiplier = 1 + rebirthLevel;
+    window.score = 0;
+    tapPower = 1;
+    passiveIncome = 0;
+    tapUpgradeCost = 20;
+    autoUpgradeCost = 100;
+    energy = maxEnergy;
+    updateDisplay();
+    saveCurrentProfile();
+    pushLog(`Выполнено перерождение #${rebirthLevel} (множитель x${rebirthMultiplier}).`);
+    alert(`Перерождение #${rebirthLevel} готово! Множитель клика теперь x${rebirthMultiplier}! 🌀`);
+};
 
-    document.getElementById('buy-energy-upgrade')?.addEventListener('click', () => {
-        const dict = translations[currentLang] || translations.ru;
-        if (state.score >= state.energyCost) {
-            state.score -= state.energyCost;
-            state.maxEnergy += 500;
-            state.energy += 500;
-            state.energyCost = Math.floor(state.energyCost * 2.2);
-            updateUI(); saveGame();
-        } else alert(dict.no_money);
-    });
-
-    document.getElementById('buy-satsivi-upgrade')?.addEventListener('click', () => {
-        const dict = translations[currentLang] || translations.ru;
-        if (state.score >= state.satsiviCost) {
-            state.score -= state.satsiviCost;
-            state.tapPower += 5;
-            state.passiveIncomeFromUpgrades = (state.passiveIncomeFromUpgrades || 0) + 10;
-            recalculatePassiveIncome();
-            state.satsiviCost = Math.floor(state.satsiviCost * 2.5);
-            updateUI(); saveGame();
-            alert(dict.satsivi_buy);
-        } else alert(dict.no_money);
-    });
-
+function initCardCategories() {
     document.querySelectorAll('.card-category-btn').forEach(btn => {
         btn.addEventListener('click', () => {
             document.querySelectorAll('.card-category-btn').forEach(b => b.classList.remove('active'));
             btn.classList.add('active');
-            activeCardCategory = btn.getAttribute('data-cat');
+            activeCardCategory = btn.getAttribute('data-cat') || 'pr';
             renderBusinessCards();
         });
     });
+}
 
-    document.querySelectorAll('.nav-btn').forEach(btn => {
+function getCardPrice(card) {
+    const lvl = cardLevels[card.id] || 0;
+    return Math.floor(card.baseCost * Math.pow(card.costMult, lvl));
+}
+
+function renderBusinessCards() {
+    const container = document.getElementById('business-cards-container');
+    if (!container || typeof allHamsterCatCards === 'undefined') return;
+
+    container.innerHTML = '';
+    const cards = allHamsterCatCards.filter(c => c.cat === activeCardCategory);
+
+    cards.forEach(card => {
+        const lvl = cardLevels[card.id] || 0;
+        const price = getCardPrice(card);
+        const locked = card.reqCard && ((cardLevels[card.reqCard] || 0) < card.reqLvl);
+        const fallbackEmoji = card.fallback || '🃏';
+
+        const item = document.createElement('div');
+        item.className = 'card-item';
+        item.innerHTML = `
+            <div class="card-left">
+                ${card.img
+                    ? `<img class="card-thumb" src="${card.img}" alt="${card.name}">`
+                    : `<div class="card-fallback-icon">${fallbackEmoji}</div>`
+                }
+                <div class="card-info">
+                    <span class="card-name">${card.name} (Ур. ${lvl})</span>
+                    <span class="card-cost">+${card.baseIncome}/с • Цена: ${price.toLocaleString()} 🪙</span>
+                    ${locked ? `<span style="font-size:10px;color:#f87171;">Нужен ур. ${card.reqLvl} карточки ${card.reqCard}</span>` : ''}
+                </div>
+            </div>
+            <button class="action-btn" type="button" ${locked ? 'disabled' : ''}>Купить</button>
+        `;
+
+        const thumbImg = item.querySelector('img.card-thumb');
+        if (thumbImg) {
+            thumbImg.addEventListener('error', () => {
+                const badge = document.createElement('div');
+                badge.className = 'card-fallback-icon';
+                badge.textContent = fallbackEmoji;
+                thumbImg.replaceWith(badge);
+            }, { once: true });
+        }
+
+        const btn = item.querySelector('button');
         btn.addEventListener('click', () => {
-            document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
-            document.querySelectorAll('.tab-section').forEach(tab => tab.classList.remove('active'));
-            btn.classList.add('active');
-            const targetId = btn.getAttribute('data-tab');
-            document.getElementById(targetId)?.classList.add('active');
-            if (targetId === 'tab-cards') renderBusinessCards();
+            if (locked) return;
+            if (window.score >= price) {
+                window.score -= price;
+                cardLevels[card.id] = lvl + 1;
+                passiveIncome += card.baseIncome;
+                pushLog(`Прокачана карточка «${card.name}» до ур. ${lvl + 1}.`);
+                updateDisplay();
+                renderBusinessCards();
+                saveCurrentProfile();
+            } else {
+                alert("Не хватает монеток на карточку! 😿");
+            }
+        });
+
+        container.appendChild(item);
+    });
+}
+
+function renderGallery() {
+    const container = document.getElementById('gallery-container');
+    if (!container || typeof galleryPhotos === 'undefined') return;
+
+    container.innerHTML = '';
+    galleryPhotos.forEach((photo, index) => {
+        const isUnlocked = unlockedPhotos.includes(index);
+        const box = document.createElement('div');
+        box.className = 'gallery-item';
+
+        if (isUnlocked) {
+            box.innerHTML = `<img src="${photo.src}" alt="${photo.title || 'Cat'}">`;
+            const imgEl = box.querySelector('img');
+            imgEl?.addEventListener('error', () => {
+                box.innerHTML = `<div class="gallery-slot-placeholder"><span>🐾</span><b>${photo.title || `Фото #${index + 1}`}</b></div>`;
+            }, { once: true });
+        } else {
+            box.innerHTML = `<div class="gallery-slot-placeholder"><span>🔒 ${photo.cost} 🪙</span><small>${photo.title || `#${index + 1}`}</small></div>`;
+        }
+
+        box.addEventListener('click', () => {
+            if (isUnlocked) {
+                const mainImg = document.getElementById('main-character-img');
+                if (mainImg && photo.src) mainImg.src = photo.src;
+                pushLog(`Выбрано фото из альбома: ${photo.title || `#${index + 1}`}.`);
+                return;
+            }
+            if (window.score >= photo.cost) {
+                window.score -= photo.cost;
+                unlockedPhotos.push(index);
+                pushLog(`Открыто фото в альбоме: ${photo.title || `#${index + 1}`}.`);
+                updateDisplay();
+                renderGallery();
+                saveCurrentProfile();
+            } else {
+                alert("Нужно больше рыбок, чтобы открыть фоточку! 😿");
+            }
+        });
+
+        container.appendChild(box);
+    });
+}
+
+function initReferralCopy() {
+    const copyBtn = document.getElementById('copy-ref-btn');
+    const refInput = document.getElementById('ref-link-input');
+    if (!copyBtn || !refInput) return;
+
+    copyBtn.addEventListener('click', () => {
+        navigator.clipboard?.writeText(refInput.value).catch(() => {});
+        window.score += 1000;
+        pushLog("Скопирована реферальная ссылка (+1000 🪙).");
+        updateDisplay();
+        saveCurrentProfile();
+        alert("Ссылка скопирована! Начислено +1000 🪙! 🐾");
+    });
+}
+
+function initSocialTasks() {
+    document.querySelectorAll('.social-btn').forEach(btn => {
+        const key = btn.getAttribute('data-social');
+        if (claimedSocials[key]) btn.classList.add('completed');
+
+        btn.addEventListener('click', () => {
+            const url = (typeof socialLinks !== 'undefined' && socialLinks[key])
+                ? socialLinks[key]
+                : 'https://t.me/+t6l3qzQXZRY0MTRI';
+            window.open(url, '_blank');
+
+            if (key !== 'donate' && !claimedSocials[key]) {
+                claimedSocials[key] = true;
+                btn.classList.add('completed');
+                setTimeout(() => {
+                    window.score += 300;
+                    pushLog(`Выполнено задание канала «${key}» (+300 🪙).`);
+                    updateDisplay();
+                    saveCurrentProfile();
+                    alert("Муррр! +300 рыбок за подписку! 🐾💖");
+                }, 1500);
+            }
         });
     });
+}
 
-    setInterval(() => {
-        if (state.passiveIncome > 0) state.score += state.passiveIncome;
-        if (state.energy < state.maxEnergy) state.energy = Math.min(state.maxEnergy, state.energy + 3);
-        updateUI();
-        saveGame();
-    }, 1000);
-});
+function initChest() {
+    const openBtn = document.getElementById('open-chest-btn');
+    if (!openBtn) return;
+
+    openBtn.addEventListener('click', () => {
+        const now = Date.now();
+        const cooldown = 12 * 60 * 60 * 1000;
+        if (now - lastChestTime < cooldown) {
+            alert("Коробочка ещё закрыта! Загляни позже 🐾");
+            return;
+        }
+        lastChestTime = now;
+        const reward = 500 + (rebirthLevel * 250);
+        window.score += reward;
+        pushLog(`Открыта волшебная коробочка (+${reward} 🪙).`);
+        updateDisplay();
+        saveCurrentProfile();
+        alert(`Ты прыгнул в коробку и нашёл +${reward} 🪙! 🎁`);
+    });
+}
+
+function updateChestTimer() {
+    const timerEl = document.getElementById('chest-timer');
+    if (!timerEl) return;
+    const cooldown = 12 * 60 * 60 * 1000;
+    const left = cooldown - (Date.now() - lastChestTime);
+    if (left <= 0 || !lastChestTime) {
+        timerEl.textContent = "Коробочка открыта! Можно забирать подарок ✨";
+    } else {
+        const hours = Math.floor(left / (1000 * 60 * 60));
+        const mins = Math.floor((left % (1000 * 60 * 60)) / (1000 * 60));
+        timerEl.textContent = `Следующая коробка через: ${hours}ч ${mins}м`;
+    }
+}
+
+function initProfilesAndCharacters() {
+    const addAccBtn = document.getElementById('add-account-btn');
+    if (addAccBtn) {
+        addAccBtn.addEventListener('click', () => {
+            const newName = prompt("🐾 Введи имя нового кото-профиля:", `Котёнок №${profiles.length + 1}`);
+            if (newName && newName.trim() !== "") {
+                profiles.push({
+                    name: newName.trim(),
+                    score: 0,
+                    tapPower: 1,
+                    passiveIncome: 0,
+                    energy: 1000,
+                    maxEnergy: 1000,
+                    energyRegenRate: 5,
+                    tapUpgradeCost: 20,
+                    autoUpgradeCost: 100,
+                    energyUpgradeCost: 250,
+                    regenUpgradeCost: 400,
+                    rebirthLevel: 0,
+                    rebirthMultiplier: 1,
+                    unlockedPhotos: [0, 1],
+                    cardLevels: {},
+                    claimedSocials: {},
+                    lastChestTime: 0,
+                    isNightMode: false,
+                    activityLog: [`Создан профиль «${newName.trim()}».`]
+                });
+                currentProfileIndex = profiles.length - 1;
+                saveProfilesData();
+                updateAccountDropdown();
+                loadProfileData();
+            }
+        });
+    }
+
+    const accountSelect = document.getElementById('account-select');
+    if (accountSelect) {
+        accountSelect.addEventListener('change', (e) => {
+            currentProfileIndex = parseInt(e.target.value, 10) || 0;
+            loadProfileData();
+        });
+    }
+
+    document.querySelectorAll('.char-avatar-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            document.querySelectorAll('.char-avatar-btn').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+
+            if (btn.id === 'char-monika-btn') selectedCharacter = 'monika';
+            if (btn.id === 'char-fortune-btn') selectedCharacter = 'fortune';
+            if (btn.id === 'char-sarabi-btn') selectedCharacter = 'sarabi';
+
+            const mainImg = document.getElementById('main-character-img');
+            const targetChar = characters.find(c => c.id === selectedCharacter);
+            if (mainImg && targetChar) {
+                mainImg.src = targetChar.img;
+            }
+            playCatMeow();
+            updateCatAgeBanner();
+            updateDisplay();
+            pushLog(`Выбран персонаж: ${targetChar ? targetChar.name : selectedCharacter}.`);
+        });
+    });
+}
+
+function initMusicPlayer() {
+    const musicBtn = document.getElementById('music-toggle-btn');
+    const bgMusic = document.getElementById('bg-music');
+
+    if (musicBtn && bgMusic) {
+        let isMusicPlaying = false;
+        musicBtn.addEventListener('click', () => {
+            const currentLang = document.getElementById('lang-select')?.value || 'ru';
+            const t = (typeof translations !== 'undefined' && translations[currentLang]) ? translations[currentLang] : translations.ru;
+
+            if (!isMusicPlaying) {
+                bgMusic.play().then(() => {
+                    isMusicPlaying = true;
+                    musicBtn.textContent = t.btn_music_off || "🎵 Выкл";
+                    musicBtn.classList.add('active');
+                }).catch(() => {});
+            } else {
+                bgMusic.pause();
+                isMusicPlaying = false;
+                musicBtn.textContent = t.btn_music_on || "🎵 Вкл";
+                musicBtn.classList.remove('active');
+            }
+        });
+    }
+}
+
+function initLanguageSelector() {
+    const langSelect = document.getElementById('lang-select');
+    if (!langSelect) return;
+
+    const savedLang = localStorage.getItem('tapMonika_lang') || 'ru';
+    langSelect.value = savedLang;
+    applyGlobalLanguage(savedLang);
+
+    langSelect.addEventListener('change', (e) => {
+        const chosenLang = e.target.value;
+        localStorage.setItem('tapMonika_lang', chosenLang);
+        applyGlobalLanguage(chosenLang);
+        updateCatAgeBanner();
+        updateDisplay();
+    });
+}
+
+function applyGlobalLanguage(langCode) {
+    if (typeof translations === 'undefined') return;
+    const t = translations[langCode] || translations.ru;
+
+    document.querySelectorAll('[data-i18n]').forEach(el => {
+        const key = el.getAttribute('data-i18n');
+        if (t && t[key]) {
+            el.textContent = t[key];
+        }
+    });
+}
+
+function loadProfilesData() {
+    const saved = localStorage.getItem('tapMonika_profiles_v3');
+    if (saved) {
+        try {
+            const parsed = JSON.parse(saved);
+            if (Array.isArray(parsed) && parsed.length > 0) {
+                profiles = parsed;
+            }
+        } catch (e) {}
+    }
+    loadProfileData();
+    updateAccountDropdown();
+}
+
+function loadProfileData() {
+    const p = profiles[currentProfileIndex] || profiles[0];
+    window.score = p.score || 0;
+    tapPower = p.tapPower || 1;
+    passiveIncome = p.passiveIncome || 0;
+    energy = p.energy ?? 1000;
+    maxEnergy = p.maxEnergy ?? 1000;
+    energyRegenRate = p.energyRegenRate ?? 5;
+    tapUpgradeCost = p.tapUpgradeCost ?? 20;
+    autoUpgradeCost = p.autoUpgradeCost ?? 100;
+    energyUpgradeCost = p.energyUpgradeCost ?? 250;
+    regenUpgradeCost = p.regenUpgradeCost ?? 400;
+    rebirthLevel = p.rebirthLevel || 0;
+    rebirthMultiplier = p.rebirthMultiplier || 1;
+    unlockedPhotos = Array.isArray(p.unlockedPhotos) ? p.unlockedPhotos : [0, 1];
+    cardLevels = p.cardLevels || {};
+    claimedSocials = p.claimedSocials || {};
+    lastChestTime = p.lastChestTime || 0;
+    isNightMode = Boolean(p.isNightMode);
+    activityLog = Array.isArray(p.activityLog) && p.activityLog.length > 0 ? p.activityLog : ["Профиль загружен."];
+
+    applyThemeMode();
+    renderActivityLog();
+    renderBusinessCards();
+    renderGallery();
+    updateDisplay();
+}
+
+function saveCurrentProfile() {
+    if (!profiles[currentProfileIndex]) return;
+    profiles[currentProfileIndex] = {
+        ...profiles[currentProfileIndex],
+        score: window.score,
+        tapPower,
+        passiveIncome,
+        energy,
+        maxEnergy,
+        energyRegenRate,
+        tapUpgradeCost,
+        autoUpgradeCost,
+        energyUpgradeCost,
+        regenUpgradeCost,
+        rebirthLevel,
+        rebirthMultiplier,
+        unlockedPhotos,
+        cardLevels,
+        claimedSocials,
+        lastChestTime,
+        isNightMode,
+        activityLog
+    };
+    saveProfilesData();
+}
+
+function saveProfilesData() {
+    localStorage.setItem('tapMonika_profiles_v3', JSON.stringify(profiles));
+}
+
+function updateAccountDropdown() {
+    const select = document.getElementById('account-select');
+    if (!select) return;
+    select.innerHTML = '';
+    profiles.forEach((p, idx) => {
+        const opt = document.createElement('option');
+        opt.value = idx;
+        opt.textContent = p.name;
+        if (idx === currentProfileIndex) opt.selected = true;
+        select.appendChild(opt);
+    });
+}

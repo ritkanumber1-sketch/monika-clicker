@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>TapMonika — Лапки (Кликер)</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="themes.css">
+</head>
+<body>
+    <div class="app-container" id="app-root">
+        <header class="header">
+            <div class="account-manager-bar">
+                <a href="index.html" class="account-action-btn" style="text-decoration:none;">← На главную</a>
+                <b style="color:#f472b6;font-size:13px;">🐾 Сайт: Лапки</b>
+                <button type="button" id="paws-night-btn" class="account-action-btn">🌙 Ночь</button>
+            </div>
+
+            <div class="character-switch-container">
+                <button type="button" class="char-avatar-btn active" data-id="monika" data-img="images/monika.jpg" data-name="Монечка 🌸">
+                    <img src="images/monika.jpg" alt="Монечка" class="char-circle-img">
+                    <span class="char-btn-name">Монечка 🌸</span>
+                </button>
+                <button type="button" class="char-avatar-btn" data-id="fortune" data-img="images/fortune.jpg" data-name="Фортуночка 🍀">
+                    <img src="images/fortune.jpg" alt="Фортуночка" class="char-circle-img">
+                    <span class="char-btn-name">Фортуночка 🍀</span>
+                </button>
+                <button type="button" class="char-avatar-btn" data-id="sarabi" data-img="images/sarabi.jpg" data-name="Сараби 👑">
+                    <img src="images/sarabi.jpg" alt="Сараби" class="char-circle-img">
+                    <span class="char-btn-name">Сараби 👑</span>
+                </button>
+            </div>
+
+            <div class="cat-age-banner" id="paws-cat-age">
+                Монечка 🌸 • ~6 лет (~40 человеческих)
+            </div>
+
+            <div class="stats-card">
+                <div class="score-display">
+                    <span>🪙</span>
+                    <span id="paws-score">0</span>
+                </div>
+                <div class="stats-sub">
+                    <span>Сила лапки: <b id="paws-tap-power">1</b></span>
+                    <span>Множитель: <b id="paws-mult">x1</b></span>
+                </div>
+            </div>
+        </header>
+
+        <main class="main-content">
+            <div class="event-ticker" id="paws-log">Тапай по лапкам или нажми Пробел для супер-импульса!</div>
+
+            <div class="clicker-area">
+                <div class="tap-circle" id="paws-tap-circle">
+                    <img id="paws-main-img" src="images/monika.jpg" alt="Кошка">
+                </div>
+            </div>
+
+            <div class="energy-container">
+                <div class="energy-labels">
+                    <span>⚡ Бодрость хвостика</span>
+                    <span><b id="paws-energy">1000</b> / <b id="paws-max-energy">1000</b></span>
+                </div>
+                <div class="energy-bar-bg">
+                    <div class="energy-bar-fill" id="paws-energy-bar"></div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <audio id="meow-audio" src="audio/meow.mp3" preload="auto"></audio>
+
+    <script>
+        const STORAGE_KEY = "tapMonika_profiles_v3";
+        const catMeta = {
+            monika: { age: "Монечка 🌸 • ~6 лет (~40 человеческих)", audio: "audio/meow.mp3" },
+            fortune: { age: "Фортуночка / Фалтуна 🍀 • 1 год 1 мес. (~16–17 человеческих)", audio: "audio/meow.mp3" },
+            sarabi: { age: "Сараби 👑 • 11 мес. (~14 человеческих)", audio: "audio/meow.mp3" }
+        };
+
+        let profiles = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[{"name":"Котёнок №1","score":0,"tapPower":1,"rebirthMultiplier":1,"energy":1000,"maxEnergy":1000,"isNightMode":false}]');
+        let p = profiles[0] || { score: 0, tapPower: 1, rebirthMultiplier: 1, energy: 1000, maxEnergy: 1000, isNightMode: false };
+        let currentCatId = "monika";
+
+        function saveState() {
+            profiles[0] = p;
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(profiles));
+        }
+
+        function renderPaws() {
+            const nightBoost = p.isNightMode ? 2 : 1;
+            const effectiveTap = (p.tapPower || 1) * (p.rebirthMultiplier || 1) * nightBoost;
+            document.getElementById("paws-score").textContent = Math.floor(p.score || 0).toLocaleString();
+            document.getElementById("paws-tap-power").textContent = Math.floor(effectiveTap).toLocaleString();
+            document.getElementById("paws-mult").textContent = `x${(p.rebirthMultiplier || 1) * nightBoost}`;
+            document.getElementById("paws-energy").textContent = Math.floor(p.energy ?? 1000);
+            document.getElementById("paws-max-energy").textContent = p.maxEnergy ?? 1000;
+            const pct = Math.max(0, Math.min(100, ((p.energy ?? 1000) / (p.maxEnergy ?? 1000)) * 100));
+            document.getElementById("paws-energy-bar").style.width = `${pct}%`;
+            document.getElementById("app-root").classList.toggle("night-mode", Boolean(p.isNightMode));
+            document.getElementById("paws-night-btn").textContent = p.isNightMode ? "☀️ День" : "🌙 Ночь";
+        }
+
+        function doPawTap(x, y) {
+            if ((p.energy ?? 1000) < 1) return;
+            p.energy = Math.max(0, (p.energy ?? 1000) - 1);
+            const nightBoost = p.isNightMode ? 2 : 1;
+            const gain = (p.tapPower || 1) * (p.rebirthMultiplier || 1) * nightBoost;
+            p.score = (p.score || 0) + gain;
+
+            const circle = document.getElementById("paws-tap-circle");
+            circle.classList.add("tapped");
+            setTimeout(() => circle.classList.remove("tapped"), 140);
+
+            const meow = document.getElementById("meow-audio");
+            if (meow) {
+                meow.currentTime = 0;
+                meow.play().catch(() => {});
+            }
+
+            const floatEl = document.createElement("div");
+            floatEl.className = "floating-gain";
+            floatEl.textContent = `+${Math.floor(gain).toLocaleString()}`;
+            floatEl.style.left = `${x || window.innerWidth / 2}px`;
+            floatEl.style.top = `${y || window.innerHeight / 2}px`;
+            document.body.appendChild(floatEl);
+            setTimeout(() => floatEl.remove(), 800);
+
+            renderPaws();
+            saveState();
+        }
+
+        document.getElementById("paws-tap-circle").addEventListener("click", (e) => doPawTap(e.clientX, e.clientY));
+        document.addEventListener("keydown", (e) => {
+            if (e.code === "Space" && !e.repeat) {
+                e.preventDefault();
+                doPawTap(window.innerWidth / 2, window.innerHeight / 2);
+            }
+        });
+
+        document.getElementById("paws-night-btn").addEventListener("click", () => {
+            p.isNightMode = !p.isNightMode;
+            document.getElementById("paws-log").textContent = p.isNightMode
+                ? "🌙 Ночной режим включён: сила лапки увеличена в 2 раза!"
+                : "☀️ Дневной режим включён.";
+            renderPaws();
+            saveState();
+        });
+
+        document.querySelectorAll(".char-avatar-btn").forEach(btn => {
+            btn.addEventListener("click", () => {
+                document.querySelectorAll(".char-avatar-btn").forEach(b => b.classList.remove("active"));
+                btn.classList.add("active");
+                currentCatId = btn.dataset.id;
+                document.getElementById("paws-main-img").src = btn.dataset.img;
+                document.getElementById("paws-cat-age").textContent = catMeta[currentCatId]?.age || btn.dataset.name;
+                document.getElementById("paws-log").textContent = `Выбран персонаж: ${btn.dataset.name}`;
+            });
+        });
+
+        setInterval(() => {
+            p.energy = Math.min(p.maxEnergy ?? 1000, (p.energy ?? 1000) + (p.energyRegenRate ?? 5));
+            renderPaws();
+            saveState();
+        }, 1000);
+
+        renderPaws();
+    </script>
+</body>
+</html>

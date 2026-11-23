@@ -1,0 +1,21 @@
+{
+  "name": "TapMonika — Clicker Studio Edition",
+  "short_name": "TapMonika",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#0f172a",
+  "theme_color": "#0f172a",
+  "description": "Кошачий кликер про Монечку, Фортуночку и Сараби с карточками, альбомом и перерождениями.",
+  "icons": [
+    {
+      "src": "images/monika.jpg",
+      "sizes": "192x192",
+      "type": "image/jpeg"
+    },
+    {
+      "src": "images/sarabi.jpg",
+      "sizes": "512x512",
+      "type": "image/jpeg"
+    }
+  ]
+}

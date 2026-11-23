@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>TapMonika — Мини-игра: Ловля рыбок</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="themes.css">
+</head>
+<body>
+    <div class="app-container" id="app-root">
+        <header class="header">
+            <div class="account-manager-bar">
+                <a href="index.html" class="account-action-btn" style="text-decoration:none;">← На главную</a>
+                <b style="color:#38bdf8;font-size:13px;">🐟 Сайт: Ловля рыбок</b>
+                <button type="button" id="fish-reset-round" class="account-action-btn">🔄 Сброс улова</button>
+            </div>
+
+            <div class="stats-card">
+                <div class="score-display">
+                    <span>🪙</span>
+                    <span id="fish-page-score">0</span>
+                </div>
+                <div class="stats-sub">
+                    <span>Награда за рыбку: <b>+25 🪙</b></span>
+                    <span>Поймано за сессию: <b id="fish-session-count">0</b></span>
+                </div>
+            </div>
+        </header>
+
+        <main class="main-content">
+            <h2 class="section-title">🐟 Мини-игра: Ловля рыбок</h2>
+            <p class="section-desc">Быстро тапай по золотой рыбке и собирай улов в общий счёт профиля!</p>
+
+            <div class="clicker-area">
+                <button type="button" id="fish-target-btn" class="tap-circle" style="font-size:68px;border:none;">🐟</button>
+            </div>
+
+            <div class="settings-box" style="text-align:center;">
+                <p id="fish-status-text">Готов к рыбалке! Нажми на рыбку.</p>
+            </div>
+        </main>
+    </div>
+
+    <script>
+        const STORAGE_KEY = "tapMonika_profiles_v3";
+        let profiles = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[{"name":"Котёнок №1","score":0,"isNightMode":false}]');
+        let p = profiles[0] || { score: 0, isNightMode: false };
+        let caught = 0;
+
+        document.getElementById("app-root").classList.toggle("night-mode", Boolean(p.isNightMode));
+
+        function saveState() {
+            profiles[0] = p;
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(profiles));
+        }
+
+        function renderFish() {
+            document.getElementById("fish-page-score").textContent = Math.floor(p.score || 0).toLocaleString();
+            document.getElementById("fish-session-count").textContent = caught;
+        }
+
+        document.getElementById("fish-target-btn").addEventListener("click", function() {
+            caught += 1;
+            p.score = (p.score || 0) + 25;
+            this.classList.add("tapped");
+            setTimeout(() => this.classList.remove("tapped"), 130);
+            document.getElementById("fish-status-text").textContent = `Поймана рыбка #${caught}! Заработано +${caught * 25} 🪙 за сессию.`;
+            renderFish();
+            saveState();
+        });
+
+        document.getElementById("fish-reset-round").addEventListener("click", () => {
+            caught = 0;
+            document.getElementById("fish-status-text").textContent = "Счётчик сессии обнулён. Лови дальше!";
+            renderFish();
+        });
+
+        renderFish();
+    </script>
+</body>
+</html>
