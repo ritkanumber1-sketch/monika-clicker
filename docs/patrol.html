@@ -12,7 +12,7 @@
         <header class="header">
             <div class="account-manager-bar">
                 <a href="index.html" class="account-action-btn" style="text-decoration:none;">← На главную</a>
-                <b style="color:#c084fc;font-size:13px;">🌙 Сайт: Ночной обход</b>
+                <b style="color:#c084fc;font-size:13px;">🌙 Обход • <span id="patrol-profile-name">Котёнок №1</span></b>
                 <button type="button" id="patrol-all-btn" class="account-action-btn">✨ Обойти всех</button>
             </div>
 
@@ -39,20 +39,55 @@
                 <button type="button" class="social-btn patrol-point" data-bonus="150">🐾 Бирючка младшая — быстрый кусь и бегом (+150 🪙)</button>
             </div>
         </main>
+
+        <div class="game-toast" id="patrol-toast"></div>
     </div>
 
     <script>
         const STORAGE_KEY = "tapMonika_profiles_v3";
-        let profiles = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[{"name":"Котёнок №1","score":0,"isNightMode":true}]');
-        let p = profiles[0] || { score: 0, isNightMode: true };
+        const ACTIVE_IDX_KEY = "tapMonika_activeProfileIndex_v3";
+
+        function createFallbackProfile() {
+            return {
+                name: "Котёнок №1",
+                score: 0,
+                isNightMode: true
+            };
+        }
+
+        let profiles = [];
+        try {
+            const raw = JSON.parse(localStorage.getItem(STORAGE_KEY) || "null");
+            if (Array.isArray(raw) && raw.length > 0) profiles = raw;
+        } catch (e) {}
+        if (!profiles.length) profiles = [createFallbackProfile()];
+
+        let activeIdx = parseInt(localStorage.getItem(ACTIVE_IDX_KEY) || "0", 10);
+        if (Number.isNaN(activeIdx) || activeIdx < 0 || activeIdx >= profiles.length) activeIdx = 0;
+
+        let p = { ...createFallbackProfile(), ...profiles[activeIdx] };
+        let toastTimer = null;
+
+        function showToast(msg) {
+            const el = document.getElementById("patrol-toast");
+            if (!el) return;
+            el.textContent = msg;
+            el.classList.add("visible");
+            clearTimeout(toastTimer);
+            toastTimer = setTimeout(() => el.classList.remove("visible"), 2000);
+        }
 
         function saveState() {
-            profiles[0] = p;
-            localStorage.setItem(STORAGE_KEY, JSON.stringify(profiles));
+            profiles[activeIdx] = p;
+            try {
+                localStorage.setItem(STORAGE_KEY, JSON.stringify(profiles));
+                localStorage.setItem(ACTIVE_IDX_KEY, String(activeIdx));
+            } catch (e) {}
         }
 
         function updatePatrolStats() {
             const done = document.querySelectorAll(".patrol-point.completed").length;
+            document.getElementById("patrol-profile-name").textContent = p.name || "Котёнок";
             document.getElementById("patrol-page-score").textContent = Math.floor(p.score || 0).toLocaleString();
             document.getElementById("patrol-done-count").textContent = done;
         }
@@ -65,13 +100,20 @@
                 p.score = (p.score || 0) + bonus;
                 saveState();
                 updatePatrolStats();
+                showToast(`+${bonus} 🪙 за обход!`);
             });
         });
 
         document.getElementById("patrol-all-btn").addEventListener("click", () => {
-            document.querySelectorAll(".patrol-point:not(.completed)").forEach(btn => btn.click());
+            const remaining = document.querySelectorAll(".patrol-point:not(.completed)");
+            if (!remaining.length) {
+                showToast("Все точки обхода уже пройдены ✨");
+                return;
+            }
+            remaining.forEach(btn => btn.click());
         });
 
+        window.addEventListener("beforeunload", saveState);
         updatePatrolStats();
     </script>
 </body>

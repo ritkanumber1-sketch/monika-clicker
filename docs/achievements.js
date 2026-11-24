@@ -1,4 +1,4 @@
-// ================= СИСТЕМА ДОСТИЖЕНИЙ TAPMONIKA (achievements.js) v1.0 =================
+// ================= СИСТЕМА ДОСТИЖЕНИЙ TAPMONIKA (achievements.js) v1.1 =================
 
 window.TapMonikaAchievements = {
     unlockedIds: [],
@@ -28,6 +28,7 @@ window.TapMonikaAchievements = {
     },
 
     evaluate() {
+        let changed = false;
         this.list.forEach(item => {
             if (this.unlockedIds.includes(item.id)) return;
             if (item.check()) {
@@ -35,12 +36,20 @@ window.TapMonikaAchievements = {
                 if (typeof window.score === "number") {
                     window.score += item.reward;
                 }
-                this.save();
+                changed = true;
                 if (typeof pushLog === "function") {
                     pushLog(`🏆 Достижение «${item.title}»! Награда: +${item.reward} 🪙`);
                 }
+                if (typeof showGameToast === "function") {
+                    showGameToast(`🏆 ${item.title}: +${item.reward} 🪙`);
+                }
             }
         });
+        if (changed) {
+            this.save();
+            if (typeof updateDisplay === "function") updateDisplay();
+            if (typeof saveCurrentProfile === "function") saveCurrentProfile();
+        }
     }
 };
 

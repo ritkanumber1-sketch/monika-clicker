@@ -1,4 +1,4 @@
-// ================= КОМБО-СИСТЕМА БЫСТРЫХ ТАПОВ (combo_system.js) v1.0 =================
+// ================= КОМБО-СИСТЕМА БЫСТРЫХ ТАПОВ (combo_system.js) v1.1 =================
 
 window.TapMonikaCombo = {
     streak: 0,
@@ -21,18 +21,15 @@ window.TapMonikaCombo = {
             if (typeof pushLog === "function") {
                 pushLog(`🔥 Комбо ${this.streak} тапов подряд! Бонус: +${bonus} 🪙`);
             }
+            if (typeof showGameToast === "function") {
+                showGameToast(`🔥 Комбо ${this.streak}! +${bonus} 🪙`);
+            }
             if (typeof updateDisplay === "function") {
                 updateDisplay();
+            }
+            if (typeof saveCurrentProfile === "function") {
+                saveCurrentProfile();
             }
         }
     }
 };
-
-document.addEventListener("DOMContentLoaded", () => {
-    const tapBtn = document.getElementById("tap-button");
-    if (tapBtn) {
-        tapBtn.addEventListener("click", () => {
-            window.TapMonikaCombo.registerTap();
-        });
-    }
-});

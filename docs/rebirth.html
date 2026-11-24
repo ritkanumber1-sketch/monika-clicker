@@ -12,7 +12,7 @@
         <header class="header">
             <div class="account-manager-bar">
                 <a href="index.html" class="account-action-btn" style="text-decoration:none;">← На главную</a>
-                <b style="color:#818cf8;font-size:13px;">🌀 Сайт: Перерождения</b>
+                <b style="color:#818cf8;font-size:13px;">🌀 Рестарт • <span id="reb-profile-name">Котёнок №1</span></b>
                 <span style="font-size:11px;color:#fbbf24;">Множитель: <b id="reb-top-mult">x1</b></span>
             </div>
 
@@ -31,7 +31,7 @@
         <main class="main-content">
             <h2 class="section-title">🌀 Бесконечные перерождения</h2>
             <div class="settings-box rebirth-card">
-                <p style="font-size:13px;color:#e2e8f0;">
+                <p class="rebirth-hint">
                     При перерождении текущий счёт и базовые апгрейды сбрасываются, а постоянный множитель лапки растёт!
                 </p>
                 <p>Текущий уровень: <b id="reb-card-lvl">0</b></p>
@@ -40,18 +40,60 @@
                 <button type="button" class="action-btn-large" id="reb-do-btn">Сделать перерождение! 🔄</button>
             </div>
         </main>
+
+        <div class="game-toast" id="reb-toast"></div>
     </div>
 
     <script>
         const STORAGE_KEY = "tapMonika_profiles_v3";
-        let profiles = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[{"name":"Котёнок №1","score":0,"tapPower":1,"passiveIncome":0,"rebirthLevel":0,"rebirthMultiplier":1,"isNightMode":false}]');
-        let p = profiles[0] || { score: 0, tapPower: 1, passiveIncome: 0, rebirthLevel: 0, rebirthMultiplier: 1, isNightMode: false };
+        const ACTIVE_IDX_KEY = "tapMonika_activeProfileIndex_v3";
+
+        function createFallbackProfile() {
+            return {
+                name: "Котёнок №1",
+                score: 0,
+                tapPower: 1,
+                passiveIncome: 0,
+                tapUpgradeCost: 20,
+                autoUpgradeCost: 100,
+                energy: 1000,
+                maxEnergy: 1000,
+                rebirthLevel: 0,
+                rebirthMultiplier: 1,
+                isNightMode: false
+            };
+        }
+
+        let profiles = [];
+        try {
+            const raw = JSON.parse(localStorage.getItem(STORAGE_KEY) || "null");
+            if (Array.isArray(raw) && raw.length > 0) profiles = raw;
+        } catch (e) {}
+        if (!profiles.length) profiles = [createFallbackProfile()];
+
+        let activeIdx = parseInt(localStorage.getItem(ACTIVE_IDX_KEY) || "0", 10);
+        if (Number.isNaN(activeIdx) || activeIdx < 0 || activeIdx >= profiles.length) activeIdx = 0;
+
+        let p = { ...createFallbackProfile(), ...profiles[activeIdx] };
+        let toastTimer = null;
 
         document.getElementById("app-root").classList.toggle("night-mode", Boolean(p.isNightMode));
 
+        function showToast(msg) {
+            const el = document.getElementById("reb-toast");
+            if (!el) return;
+            el.textContent = msg;
+            el.classList.add("visible");
+            clearTimeout(toastTimer);
+            toastTimer = setTimeout(() => el.classList.remove("visible"), 2200);
+        }
+
         function saveState() {
-            profiles[0] = p;
-            localStorage.setItem(STORAGE_KEY, JSON.stringify(profiles));
+            profiles[activeIdx] = p;
+            try {
+                localStorage.setItem(STORAGE_KEY, JSON.stringify(profiles));
+                localStorage.setItem(ACTIVE_IDX_KEY, String(activeIdx));
+            } catch (e) {}
         }
 
         function updateRebirthView() {
@@ -59,6 +101,7 @@
             const mult = p.rebirthMultiplier || 1;
             const cost = 5000 * (lvl + 1);
 
+            document.getElementById("reb-profile-name").textContent = p.name || "Котёнок";
             document.getElementById("reb-page-score").textContent = Math.floor(p.score || 0).toLocaleString();
             document.getElementById("reb-page-lvl").textContent = lvl;
             document.getElementById("reb-page-cost").textContent = cost.toLocaleString();
@@ -72,18 +115,23 @@
             const lvl = p.rebirthLevel || 0;
             const cost = 5000 * (lvl + 1);
             if ((p.score || 0) < cost) {
-                return alert(`Нужно хотя бы ${cost.toLocaleString()} 🪙 для перерождения!`);
+                showToast(`Нужно ${cost.toLocaleString()} 🪙 для перерождения!`);
+                return;
             }
             p.rebirthLevel = lvl + 1;
             p.rebirthMultiplier = 1 + p.rebirthLevel;
             p.score = 0;
             p.tapPower = 1;
             p.passiveIncome = 0;
+            p.tapUpgradeCost = 20;
+            p.autoUpgradeCost = 100;
+            p.energy = p.maxEnergy ?? 1000;
             saveState();
             updateRebirthView();
-            alert(`Перерождение #${p.rebirthLevel} готово! Новый множитель: x${p.rebirthMultiplier}! 🌀`);
+            showToast(`Перерождение #${p.rebirthLevel}! Множитель x${p.rebirthMultiplier} 🌀`);
         });
 
+        window.addEventListener("beforeunload", saveState);
         updateRebirthView();
     </script>
 </body>

@@ -1,4 +1,4 @@
-// ================= ПРОСМОТРЩИК ФОТО ИЗ АЛЬБОМА (photo_viewer.js) v1.0 =================
+// ================= ПРОСМОТРЩИК ФОТО ИЗ АЛЬБОМА (photo_viewer.js) v1.1 =================
 
 window.TapMonikaPhotoViewer = {
     open(photo) {
@@ -37,8 +37,17 @@ window.TapMonikaPhotoViewer = {
         overlay.querySelector("#photo-modal-set-main")?.addEventListener("click", () => {
             const mainImg = document.getElementById("main-character-img");
             if (mainImg) mainImg.src = photo.src;
+            if (typeof activePhotoSrc !== "undefined") {
+                activePhotoSrc = photo.src;
+            }
+            if (typeof saveCurrentProfile === "function") {
+                saveCurrentProfile();
+            }
             if (typeof pushLog === "function") {
                 pushLog(`Установлено главное фото: ${photo.title || photo.src}.`);
+            }
+            if (typeof showGameToast === "function") {
+                showGameToast(`Главное фото: ${photo.title || "Фоточка"} 🐾`);
             }
             this.close();
         });

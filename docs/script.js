@@ -1,4 +1,4 @@
-// ================= ПОЛНЫЙ ИГРОВОЙ СКРИПТ (script.js) v3.4 STUDIO EDITION =================
+// ================= ИГРОВОЙ СКРИПТ (script.js) TAPMONIKA STUDIO =================
 
 window.score = 0;
 let tapPower = 1;
@@ -19,28 +19,42 @@ let lastChestTime = 0;
 let isNightMode = false;
 let activityLog = ["Игра TapMonika запущена."];
 
-let profiles = [{
-    name: "Котёнок №1",
-    score: 0,
-    tapPower: 1,
-    passiveIncome: 0,
-    energy: 1000,
-    maxEnergy: 1000,
-    energyRegenRate: 5,
-    tapUpgradeCost: 20,
-    autoUpgradeCost: 100,
-    energyUpgradeCost: 250,
-    regenUpgradeCost: 400,
-    rebirthLevel: 0,
-    rebirthMultiplier: 1,
-    unlockedPhotos: [0, 1],
-    cardLevels: {},
-    claimedSocials: {},
-    lastChestTime: 0,
-    isNightMode: false,
-    activityLog: ["Игра TapMonika запущена."]
-}];
+let activeTabId = 'tab-game';
+let activePhotoSrc = 'images/monika.jpg';
+let spaceBoostUntil = 0;
+let spaceBoostCooldownUntil = 0;
+let lastPointerTapTime = 0;
+let resetConfirmUntil = 0;
+let toastTimer = null;
 
+function createDefaultProfile(name = "Котёнок №1") {
+    return {
+        name,
+        selectedCharacter: 'monika',
+        activePhotoSrc: 'images/monika.jpg',
+        activeTab: 'tab-game',
+        score: 0,
+        tapPower: 1,
+        passiveIncome: 0,
+        energy: 1000,
+        maxEnergy: 1000,
+        energyRegenRate: 5,
+        tapUpgradeCost: 20,
+        autoUpgradeCost: 100,
+        energyUpgradeCost: 250,
+        regenUpgradeCost: 400,
+        rebirthLevel: 0,
+        rebirthMultiplier: 1,
+        unlockedPhotos: [0, 1],
+        cardLevels: {},
+        claimedSocials: {},
+        lastChestTime: 0,
+        isNightMode: false,
+        activityLog: [`Профиль «${name}» готов к игре.`]
+    };
+}
+
+let profiles = [createDefaultProfile("Котёнок №1")];
 let currentProfileIndex = 0;
 let selectedCharacter = 'monika';
 let activeCardCategory = 'pr';
@@ -50,6 +64,52 @@ const characters = [
     { id: 'fortune', name: 'Фортуночка 🍀', img: 'images/fortune.jpg' },
     { id: 'sarabi', name: 'Сараби 👑', img: 'images/sarabi.jpg' }
 ];
+
+function showGameToast(text) {
+    let toast = document.getElementById('game-toast');
+    if (!toast) {
+        const root = document.getElementById('app-root') || document.body;
+        toast = document.createElement('div');
+        toast.id = 'game-toast';
+        toast.className = 'game-toast';
+        root.appendChild(toast);
+    }
+    toast.textContent = text;
+    toast.classList.add('visible');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => {
+        toast.classList.remove('visible');
+    }, 2200);
+}
+
+function getCharacterDefaultPhoto(charId) {
+    const found = characters.find(c => c.id === charId);
+    return found ? found.img : 'images/monika.jpg';
+}
+
+function syncCharacterUI() {
+    document.querySelectorAll('.char-avatar-btn').forEach(b => b.classList.remove('active'));
+    const activeBtn = document.getElementById(`char-${selectedCharacter}-btn`);
+    if (activeBtn) activeBtn.classList.add('active');
+
+    const mainImg = document.getElementById('main-character-img');
+    const photoToShow = activePhotoSrc || getCharacterDefaultPhoto(selectedCharacter);
+    if (mainImg && photoToShow) {
+        mainImg.src = photoToShow;
+    }
+    updateCatAgeBanner();
+}
+
+function switchToTab(targetTabId) {
+    const navButtons = document.querySelectorAll('.nav-btn');
+    const tabSections = document.querySelectorAll('.tab-section');
+    const targetSection = document.getElementById(targetTabId);
+    if (!targetSection) return;
+
+    activeTabId = targetTabId;
+    navButtons.forEach(b => b.classList.toggle('active', b.getAttribute('data-tab') === targetTabId));
+    tabSections.forEach(s => s.classList.toggle('active', s.id === targetTabId));
+}
 
 document.addEventListener('DOMContentLoaded', () => {
     if (window.Telegram && window.Telegram.WebApp) {
@@ -107,7 +167,8 @@ function getEffectiveTapPower() {
         ? catAgeInfo[selectedCharacter].tapBonus
         : 0;
     const nightMult = isNightMode ? 2 : 1;
-    return (tapPower + charBonus) * rebirthMultiplier * nightMult;
+    const spaceMult = Date.now() < spaceBoostUntil ? 5 : 1;
+    return (tapPower + charBonus) * rebirthMultiplier * nightMult * spaceMult;
 }
 
 function getLeagueName() {
@@ -119,6 +180,10 @@ function getLeagueName() {
 }
 
 function playCatMeow() {
+    if (window.TapMonikaAudio && typeof window.TapMonikaAudio.playMeow === 'function') {
+        window.TapMonikaAudio.playMeow(selectedCharacter);
+        return;
+    }
     const meowAudio = document.getElementById('meow-audio');
     if (!meowAudio) return;
     const customSrc = (typeof catAudioMap !== 'undefined' && catAudioMap[selectedCharacter])
@@ -157,6 +222,10 @@ function triggerTapAction(clientX, clientY, event) {
         setTimeout(() => tapButton.classList.remove('tapped'), 140);
     }
 
+    if (window.TapMonikaCombo && typeof window.TapMonikaCombo.registerTap === 'function') {
+        window.TapMonikaCombo.registerTap();
+    }
+
     playCatMeow();
     spawnFloatingGain(clientX, clientY, gain);
     updateDisplay();
@@ -166,23 +235,39 @@ function initClicker() {
     const tapButton = document.getElementById('tap-button');
     if (!tapButton) return;
 
+    const handleTap = (clientX, clientY, event) => {
+        const now = Date.now();
+        if (now - lastPointerTapTime < 35) return;
+        lastPointerTapTime = now;
+        triggerTapAction(clientX, clientY, event);
+    };
+
+    tapButton.addEventListener('pointerdown', (event) => {
+        if (event.button !== undefined && event.button !== 0) return;
+        handleTap(event.clientX, event.clientY, event);
+    });
+
     tapButton.addEventListener('click', (event) => {
-        triggerTapAction(event.clientX, event.clientY, event);
+        if (event.detail === 0) {
+            handleTap(window.innerWidth / 2, window.innerHeight / 2, event);
+        }
     });
 }
 
-let baseTapPowerBeforeSpace = 1;
 function initSpacebarBoost() {
     document.addEventListener('keydown', (e) => {
         if ((e.code === 'Space' || e.key === ' ') && !e.repeat) {
+            const tag = document.activeElement?.tagName?.toLowerCase();
+            if (tag === 'input' || tag === 'select' || tag === 'textarea') return;
             e.preventDefault();
-            if (tapPower < 200000) {
-                baseTapPowerBeforeSpace = tapPower;
-                tapPower = baseTapPowerBeforeSpace * 200000;
-            } else {
-                tapPower *= 200000;
+
+            const now = Date.now();
+            if (now >= spaceBoostCooldownUntil) {
+                spaceBoostUntil = now + 8000;
+                spaceBoostCooldownUntil = now + 20000;
+                pushLog("Турбо-лапка x5 активирована на 8 сек!");
+                showGameToast("⚡ Турбо-лапка x5 на 8 сек!");
             }
-            pushLog("Активирован супер-буст по Пробелу!");
             triggerTapAction(window.innerWidth / 2, window.innerHeight / 2, null);
         }
     });
@@ -263,6 +348,7 @@ function initThemeAndBackup() {
             isNightMode = !isNightMode;
             applyThemeMode();
             pushLog(isNightMode ? "Включён ночной обход двора (бонус x2 к тапу)." : "Включён дневной домашний режим.");
+            showGameToast(isNightMode ? "🌙 Ночной обход: x2 тап" : "☀️ Дневной режим");
             updateDisplay();
             saveCurrentProfile();
         });
@@ -284,7 +370,7 @@ function initThemeAndBackup() {
             });
             navigator.clipboard?.writeText(payload).catch(() => {});
             pushLog("Код сохранения скопирован в буфер обмена.");
-            alert("Код сохранения скопирован! 📋");
+            showGameToast("Код сохранения скопирован! 📋");
         });
     }
 
@@ -310,9 +396,9 @@ function initThemeAndBackup() {
                 updateDisplay();
                 saveCurrentProfile();
                 pushLog("Прогресс успешно загружен из кода сохранения.");
-                alert("Сохранение загружено! ✨");
+                showGameToast("Сохранение загружено! ✨");
             } catch (e) {
-                alert("Некорректный код сохранения!");
+                showGameToast("Некорректный код сохранения!");
             }
         });
     }
@@ -320,7 +406,13 @@ function initThemeAndBackup() {
     const resetBtn = document.getElementById('reset-profile-btn');
     if (resetBtn) {
         resetBtn.addEventListener('click', () => {
-            if (!confirm("Обнулить прогресс текущего профиля?")) return;
+            const now = Date.now();
+            if (now > resetConfirmUntil) {
+                resetConfirmUntil = now + 3500;
+                showGameToast("Нажми «Обнулить» ещё раз в течение 3 сек для подтверждения");
+                return;
+            }
+            resetConfirmUntil = 0;
             window.score = 0;
             tapPower = 1;
             passiveIncome = 0;
@@ -334,30 +426,29 @@ function initThemeAndBackup() {
             rebirthLevel = 0;
             rebirthMultiplier = 1;
             unlockedPhotos = [0, 1];
+            activePhotoSrc = getCharacterDefaultPhoto(selectedCharacter);
             cardLevels = {};
             claimedSocials = {};
             lastChestTime = 0;
+            syncCharacterUI();
             renderBusinessCards();
             renderGallery();
             updateDisplay();
             saveCurrentProfile();
             pushLog("Текущий профиль сброшен до стартовых значений.");
+            showGameToast("Профиль обнулён");
         });
     }
 }
 
 function initTabs() {
-    const navButtons = document.querySelectorAll('.nav-btn');
-    const tabSections = document.querySelectorAll('.tab-section');
-
-    navButtons.forEach(btn => {
+    document.querySelectorAll('.nav-btn').forEach(btn => {
         btn.addEventListener('click', () => {
             const targetTabId = btn.getAttribute('data-tab');
-            navButtons.forEach(b => b.classList.remove('active'));
-            tabSections.forEach(s => s.classList.remove('active'));
-            btn.classList.add('active');
-            const targetSection = document.getElementById(targetTabId);
-            if (targetSection) targetSection.classList.add('active');
+            if (targetTabId) {
+                switchToTab(targetTabId);
+                saveCurrentProfile();
+            }
         });
     });
 }
@@ -370,11 +461,12 @@ function initUpgrades() {
                 window.score -= tapUpgradeCost;
                 tapPower += 1;
                 tapUpgradeCost = Math.floor(tapUpgradeCost * 1.45);
+                window.TapMonikaSfx?.buySound?.();
                 pushLog("Куплена мягкая подушечка (+1 к силе лапки).");
                 updateDisplay();
                 saveCurrentProfile();
             } else {
-                alert("Мяу! Не хватает рыбок! 😿");
+                showGameToast("Мяу! Не хватает рыбок! 😿");
             }
         });
     }
@@ -386,11 +478,12 @@ function initUpgrades() {
                 window.score -= autoUpgradeCost;
                 passiveIncome += 2;
                 autoUpgradeCost = Math.floor(autoUpgradeCost * 1.5);
+                window.TapMonikaSfx?.buySound?.();
                 pushLog("Куплена мисочка с паштетом (+2/с к мур-доходу).");
                 updateDisplay();
                 saveCurrentProfile();
             } else {
-                alert("Мяу! Не хватает рыбок! 😿");
+                showGameToast("Мяу! Не хватает рыбок! 😿");
             }
         });
     }
@@ -403,11 +496,12 @@ function initUpgrades() {
                 maxEnergy += 250;
                 energy = maxEnergy;
                 energyUpgradeCost = Math.floor(energyUpgradeCost * 1.55);
+                window.TapMonikaSfx?.buySound?.();
                 pushLog("Куплен большой лежак (+250 к бодрости).");
                 updateDisplay();
                 saveCurrentProfile();
             } else {
-                alert("Мяу! Не хватает рыбок на лежак! 😿");
+                showGameToast("Мяу! Не хватает рыбок на лежак! 😿");
             }
         });
     }
@@ -419,11 +513,12 @@ function initUpgrades() {
                 window.score -= regenUpgradeCost;
                 energyRegenRate += 3;
                 regenUpgradeCost = Math.floor(regenUpgradeCost * 1.6);
+                window.TapMonikaSfx?.buySound?.();
                 pushLog("Куплена мятная игрушка (+3 к регенерации бодрости).");
                 updateDisplay();
                 saveCurrentProfile();
             } else {
-                alert("Мяу! Не хватает рыбок на игрушку! 😿");
+                showGameToast("Мяу! Не хватает рыбок на игрушку! 😿");
             }
         });
     }
@@ -445,7 +540,7 @@ function updateRebirthUI() {
 window.doRebirth = function() {
     const cost = getRebirthCost();
     if (window.score < cost) {
-        alert(`Нужно хотя бы ${cost.toLocaleString()} 🪙 для перерождения!`);
+        showGameToast(`Нужно ${cost.toLocaleString()} 🪙 для перерождения!`);
         return;
     }
     rebirthLevel += 1;
@@ -456,10 +551,11 @@ window.doRebirth = function() {
     tapUpgradeCost = 20;
     autoUpgradeCost = 100;
     energy = maxEnergy;
+    window.TapMonikaSfx?.rebirthSound?.();
     updateDisplay();
     saveCurrentProfile();
     pushLog(`Выполнено перерождение #${rebirthLevel} (множитель x${rebirthMultiplier}).`);
-    alert(`Перерождение #${rebirthLevel} готово! Множитель клика теперь x${rebirthMultiplier}! 🌀`);
+    showGameToast(`Перерождение #${rebirthLevel}! Множитель x${rebirthMultiplier} 🌀`);
 };
 
 function initCardCategories() {
@@ -502,7 +598,7 @@ function renderBusinessCards() {
                 <div class="card-info">
                     <span class="card-name">${card.name} (Ур. ${lvl})</span>
                     <span class="card-cost">+${card.baseIncome}/с • Цена: ${price.toLocaleString()} 🪙</span>
-                    ${locked ? `<span style="font-size:10px;color:#f87171;">Нужен ур. ${card.reqLvl} карточки ${card.reqCard}</span>` : ''}
+                    ${locked ? `<span class="card-req-note">Нужен ур. ${card.reqLvl} карточки ${card.reqCard}</span>` : ''}
                 </div>
             </div>
             <button class="action-btn" type="button" ${locked ? 'disabled' : ''}>Купить</button>
@@ -525,12 +621,13 @@ function renderBusinessCards() {
                 window.score -= price;
                 cardLevels[card.id] = lvl + 1;
                 passiveIncome += card.baseIncome;
+                window.TapMonikaSfx?.buySound?.();
                 pushLog(`Прокачана карточка «${card.name}» до ур. ${lvl + 1}.`);
                 updateDisplay();
                 renderBusinessCards();
                 saveCurrentProfile();
             } else {
-                alert("Не хватает монеток на карточку! 😿");
+                showGameToast("Не хватает монеток на карточку! 😿");
             }
         });
 
@@ -560,20 +657,29 @@ function renderGallery() {
 
         box.addEventListener('click', () => {
             if (isUnlocked) {
-                const mainImg = document.getElementById('main-character-img');
-                if (mainImg && photo.src) mainImg.src = photo.src;
+                if (window.TapMonikaPhotoViewer && typeof window.TapMonikaPhotoViewer.open === 'function') {
+                    window.TapMonikaPhotoViewer.open(photo);
+                } else {
+                    const mainImg = document.getElementById('main-character-img');
+                    if (mainImg && photo.src) {
+                        mainImg.src = photo.src;
+                        activePhotoSrc = photo.src;
+                        saveCurrentProfile();
+                    }
+                }
                 pushLog(`Выбрано фото из альбома: ${photo.title || `#${index + 1}`}.`);
                 return;
             }
             if (window.score >= photo.cost) {
                 window.score -= photo.cost;
                 unlockedPhotos.push(index);
+                window.TapMonikaSfx?.buySound?.();
                 pushLog(`Открыто фото в альбоме: ${photo.title || `#${index + 1}`}.`);
                 updateDisplay();
                 renderGallery();
                 saveCurrentProfile();
             } else {
-                alert("Нужно больше рыбок, чтобы открыть фоточку! 😿");
+                showGameToast("Нужно больше рыбок, чтобы открыть фоточку! 😿");
             }
         });
 
@@ -589,10 +695,11 @@ function initReferralCopy() {
     copyBtn.addEventListener('click', () => {
         navigator.clipboard?.writeText(refInput.value).catch(() => {});
         window.score += 1000;
+        window.TapMonikaSfx?.buySound?.();
         pushLog("Скопирована реферальная ссылка (+1000 🪙).");
         updateDisplay();
         saveCurrentProfile();
-        alert("Ссылка скопирована! Начислено +1000 🪙! 🐾");
+        showGameToast("Ссылка скопирована! +1000 🪙 🐾");
     });
 }
 
@@ -605,17 +712,22 @@ function initSocialTasks() {
             const url = (typeof socialLinks !== 'undefined' && socialLinks[key])
                 ? socialLinks[key]
                 : 'https://t.me/+t6l3qzQXZRY0MTRI';
-            window.open(url, '_blank');
+            if (typeof window.openExternalLink === 'function') {
+                window.openExternalLink(url);
+            } else {
+                window.open(url, '_blank', 'noopener,noreferrer');
+            }
 
             if (key !== 'donate' && !claimedSocials[key]) {
                 claimedSocials[key] = true;
                 btn.classList.add('completed');
                 setTimeout(() => {
                     window.score += 300;
+                    window.TapMonikaSfx?.buySound?.();
                     pushLog(`Выполнено задание канала «${key}» (+300 🪙).`);
                     updateDisplay();
                     saveCurrentProfile();
-                    alert("Муррр! +300 рыбок за подписку! 🐾💖");
+                    showGameToast("Муррр! +300 рыбок за подписку! 🐾💖");
                 }, 1500);
             }
         });
@@ -630,16 +742,17 @@ function initChest() {
         const now = Date.now();
         const cooldown = 12 * 60 * 60 * 1000;
         if (now - lastChestTime < cooldown) {
-            alert("Коробочка ещё закрыта! Загляни позже 🐾");
+            showGameToast("Коробочка ещё закрыта! Загляни позже 🐾");
             return;
         }
         lastChestTime = now;
         const reward = 500 + (rebirthLevel * 250);
         window.score += reward;
+        window.TapMonikaSfx?.rebirthSound?.();
         pushLog(`Открыта волшебная коробочка (+${reward} 🪙).`);
         updateDisplay();
         saveCurrentProfile();
-        alert(`Ты прыгнул в коробку и нашёл +${reward} 🪙! 🎁`);
+        showGameToast(`Найдено +${reward} 🪙 в коробке! 🎁`);
     });
 }
 
@@ -661,91 +774,112 @@ function initProfilesAndCharacters() {
     const addAccBtn = document.getElementById('add-account-btn');
     if (addAccBtn) {
         addAccBtn.addEventListener('click', () => {
+            saveCurrentProfile();
             const newName = prompt("🐾 Введи имя нового кото-профиля:", `Котёнок №${profiles.length + 1}`);
             if (newName && newName.trim() !== "") {
-                profiles.push({
-                    name: newName.trim(),
-                    score: 0,
-                    tapPower: 1,
-                    passiveIncome: 0,
-                    energy: 1000,
-                    maxEnergy: 1000,
-                    energyRegenRate: 5,
-                    tapUpgradeCost: 20,
-                    autoUpgradeCost: 100,
-                    energyUpgradeCost: 250,
-                    regenUpgradeCost: 400,
-                    rebirthLevel: 0,
-                    rebirthMultiplier: 1,
-                    unlockedPhotos: [0, 1],
-                    cardLevels: {},
-                    claimedSocials: {},
-                    lastChestTime: 0,
-                    isNightMode: false,
-                    activityLog: [`Создан профиль «${newName.trim()}».`]
-                });
+                profiles.push(createDefaultProfile(newName.trim()));
                 currentProfileIndex = profiles.length - 1;
                 saveProfilesData();
                 updateAccountDropdown();
                 loadProfileData();
+                pushLog(`Создан и открыт профиль «${newName.trim()}».`);
+                showGameToast(`Создан профиль «${newName.trim()}» 🐾`);
             }
+        });
+    }
+
+    const renameAccBtn = document.getElementById('rename-account-btn');
+    if (renameAccBtn) {
+        renameAccBtn.addEventListener('click', () => {
+            const current = profiles[currentProfileIndex];
+            if (!current) return;
+            const nextName = prompt("✏️ Новое имя кото-профиля:", current.name);
+            if (nextName && nextName.trim() !== "") {
+                current.name = nextName.trim();
+                saveProfilesData();
+                updateAccountDropdown();
+                pushLog(`Профиль переименован в «${current.name}».`);
+                showGameToast(`Имя профиля: ${current.name} ✏️`);
+            }
+        });
+    }
+
+    const deleteAccBtn = document.getElementById('delete-account-btn');
+    if (deleteAccBtn) {
+        deleteAccBtn.addEventListener('click', () => {
+            if (profiles.length <= 1) {
+                showGameToast("Нельзя удалить единственный профиль 🐾");
+                return;
+            }
+            profiles.splice(currentProfileIndex, 1);
+            currentProfileIndex = Math.max(0, currentProfileIndex - 1);
+            saveProfilesData();
+            updateAccountDropdown();
+            loadProfileData();
+            pushLog(`Профиль удалён. Активен: «${profiles[currentProfileIndex].name}».`);
+            showGameToast(`Активен профиль «${profiles[currentProfileIndex].name}»`);
         });
     }
 
     const accountSelect = document.getElementById('account-select');
     if (accountSelect) {
         accountSelect.addEventListener('change', (e) => {
+            saveCurrentProfile();
             currentProfileIndex = parseInt(e.target.value, 10) || 0;
+            saveProfilesData();
             loadProfileData();
+            const activeName = profiles[currentProfileIndex]?.name || 'Котёнок';
+            pushLog(`Переключён профиль: «${activeName}».`);
+            showGameToast(`Профиль: ${activeName} 🐾`);
         });
     }
 
     document.querySelectorAll('.char-avatar-btn').forEach(btn => {
         btn.addEventListener('click', () => {
-            document.querySelectorAll('.char-avatar-btn').forEach(b => b.classList.remove('active'));
-            btn.classList.add('active');
-
             if (btn.id === 'char-monika-btn') selectedCharacter = 'monika';
             if (btn.id === 'char-fortune-btn') selectedCharacter = 'fortune';
             if (btn.id === 'char-sarabi-btn') selectedCharacter = 'sarabi';
 
-            const mainImg = document.getElementById('main-character-img');
+            activePhotoSrc = getCharacterDefaultPhoto(selectedCharacter);
             const targetChar = characters.find(c => c.id === selectedCharacter);
-            if (mainImg && targetChar) {
-                mainImg.src = targetChar.img;
-            }
+            syncCharacterUI();
             playCatMeow();
-            updateCatAgeBanner();
             updateDisplay();
+            saveCurrentProfile();
             pushLog(`Выбран персонаж: ${targetChar ? targetChar.name : selectedCharacter}.`);
         });
+    });
+
+    window.addEventListener('beforeunload', () => saveCurrentProfile());
+    document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'hidden') {
+            saveCurrentProfile();
+        }
     });
 }
 
 function initMusicPlayer() {
     const musicBtn = document.getElementById('music-toggle-btn');
-    const bgMusic = document.getElementById('bg-music');
+    if (!musicBtn) return;
 
-    if (musicBtn && bgMusic) {
-        let isMusicPlaying = false;
-        musicBtn.addEventListener('click', () => {
-            const currentLang = document.getElementById('lang-select')?.value || 'ru';
-            const t = (typeof translations !== 'undefined' && translations[currentLang]) ? translations[currentLang] : translations.ru;
-
-            if (!isMusicPlaying) {
-                bgMusic.play().then(() => {
-                    isMusicPlaying = true;
-                    musicBtn.textContent = t.btn_music_off || "🎵 Выкл";
-                    musicBtn.classList.add('active');
-                }).catch(() => {});
-            } else {
-                bgMusic.pause();
-                isMusicPlaying = false;
-                musicBtn.textContent = t.btn_music_on || "🎵 Вкл";
-                musicBtn.classList.remove('active');
-            }
-        });
-    }
+    musicBtn.addEventListener('click', () => {
+        if (window.TapMonikaAudio && typeof window.TapMonikaAudio.toggleMusic === 'function') {
+            window.TapMonikaAudio.toggleMusic(musicBtn);
+            return;
+        }
+        const bgMusic = document.getElementById('bg-music');
+        if (!bgMusic) return;
+        if (bgMusic.paused) {
+            bgMusic.play().then(() => {
+                musicBtn.textContent = "🎵 Выкл";
+                musicBtn.classList.add('active');
+            }).catch(() => {});
+        } else {
+            bgMusic.pause();
+            musicBtn.textContent = "🎵 Вкл";
+            musicBtn.classList.remove('active');
+        }
+    });
 }
 
 function initLanguageSelector() {
@@ -779,6 +913,7 @@ function applyGlobalLanguage(langCode) {
 
 function loadProfilesData() {
     const saved = localStorage.getItem('tapMonika_profiles_v3');
+    const savedIdx = parseInt(localStorage.getItem('tapMonika_activeProfileIndex_v3') || '0', 10);
     if (saved) {
         try {
             const parsed = JSON.parse(saved);
@@ -787,12 +922,13 @@ function loadProfilesData() {
             }
         } catch (e) {}
     }
+    currentProfileIndex = (savedIdx >= 0 && savedIdx < profiles.length) ? savedIdx : 0;
     loadProfileData();
     updateAccountDropdown();
 }
 
 function loadProfileData() {
-    const p = profiles[currentProfileIndex] || profiles[0];
+    const p = profiles[currentProfileIndex] || createDefaultProfile();
     window.score = p.score || 0;
     tapPower = p.tapPower || 1;
     passiveIncome = p.passiveIncome || 0;
@@ -810,8 +946,13 @@ function loadProfileData() {
     claimedSocials = p.claimedSocials || {};
     lastChestTime = p.lastChestTime || 0;
     isNightMode = Boolean(p.isNightMode);
+    selectedCharacter = p.selectedCharacter || 'monika';
+    activePhotoSrc = p.activePhotoSrc || getCharacterDefaultPhoto(selectedCharacter);
+    activeTabId = p.activeTab || 'tab-game';
     activityLog = Array.isArray(p.activityLog) && p.activityLog.length > 0 ? p.activityLog : ["Профиль загружен."];
 
+    syncCharacterUI();
+    switchToTab(activeTabId);
     applyThemeMode();
     renderActivityLog();
     renderBusinessCards();
@@ -823,6 +964,9 @@ function saveCurrentProfile() {
     if (!profiles[currentProfileIndex]) return;
     profiles[currentProfileIndex] = {
         ...profiles[currentProfileIndex],
+        selectedCharacter,
+        activePhotoSrc,
+        activeTab: activeTabId,
         score: window.score,
         tapPower,
         passiveIncome,
@@ -846,7 +990,10 @@ function saveCurrentProfile() {
 }
 
 function saveProfilesData() {
-    localStorage.setItem('tapMonika_profiles_v3', JSON.stringify(profiles));
+    try {
+        localStorage.setItem('tapMonika_profiles_v3', JSON.stringify(profiles));
+        localStorage.setItem('tapMonika_activeProfileIndex_v3', String(currentProfileIndex));
+    } catch (e) {}
 }
 
 function updateAccountDropdown() {
@@ -856,7 +1003,8 @@ function updateAccountDropdown() {
     profiles.forEach((p, idx) => {
         const opt = document.createElement('option');
         opt.value = idx;
-        opt.textContent = p.name;
+        const catIcon = p.selectedCharacter === 'fortune' ? '🍀' : (p.selectedCharacter === 'sarabi' ? '👑' : '🌸');
+        opt.textContent = `${catIcon} ${p.name}`;
         if (idx === currentProfileIndex) opt.selected = true;
         select.appendChild(opt);
     });

@@ -1,4 +1,4 @@
-// ================= ЕЖЕДНЕВНЫЕ ЗАДАНИЯ TAPMONIKA (daily_quests.js) v1.0 =================
+// ================= ЕЖЕДНЕВНЫЕ ЗАДАНИЯ TAPMONIKA (daily_quests.js) v1.1 =================
 
 window.TapMonikaQuests = {
     dayKey: new Date().toISOString().slice(0, 10),
@@ -57,6 +57,9 @@ window.TapMonikaQuests = {
                 totalBonus += q.reward;
                 if (typeof pushLog === "function") {
                     pushLog(`🎯 Ежедневное задание «${q.title}» выполнено (+${q.reward} 🪙).`);
+                }
+                if (typeof showGameToast === "function") {
+                    showGameToast(`🎯 Задание выполнено: +${q.reward} 🪙`);
                 }
             }
         });

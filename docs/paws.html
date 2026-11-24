@@ -12,7 +12,7 @@
         <header class="header">
             <div class="account-manager-bar">
                 <a href="index.html" class="account-action-btn" style="text-decoration:none;">← На главную</a>
-                <b style="color:#f472b6;font-size:13px;">🐾 Сайт: Лапки</b>
+                <b style="color:#f472b6;font-size:13px;">🐾 Лапки • <span id="paws-profile-name">Котёнок №1</span></b>
                 <button type="button" id="paws-night-btn" class="account-action-btn">🌙 Ночь</button>
             </div>
 
@@ -32,7 +32,7 @@
             </div>
 
             <div class="cat-age-banner" id="paws-cat-age">
-                Монечка 🌸 • ~6 лет (~40 человеческих)
+                Монечка 🌸 • 6 лет (род. ~2020) • ~40 лет по-человечески
             </div>
 
             <div class="stats-card">
@@ -48,7 +48,7 @@
         </header>
 
         <main class="main-content">
-            <div class="event-ticker" id="paws-log">Тапай по лапкам или нажми Пробел для супер-импульса!</div>
+            <div class="event-ticker" id="paws-log">Тапай по лапкам или нажми Пробел для турбо-импульса!</div>
 
             <div class="clicker-area">
                 <div class="tap-circle" id="paws-tap-circle">
@@ -64,59 +64,160 @@
                 <div class="energy-bar-bg">
                     <div class="energy-bar-fill" id="paws-energy-bar"></div>
                 </div>
+                <div class="energy-regen-note">Регенерация: +<b id="paws-regen-val">5</b>/с</div>
             </div>
         </main>
+
+        <div class="game-toast" id="paws-toast"></div>
     </div>
 
     <audio id="meow-audio" src="audio/meow.mp3" preload="auto"></audio>
 
     <script>
         const STORAGE_KEY = "tapMonika_profiles_v3";
+        const ACTIVE_IDX_KEY = "tapMonika_activeProfileIndex_v3";
+
         const catMeta = {
-            monika: { age: "Монечка 🌸 • ~6 лет (~40 человеческих)", audio: "audio/meow.mp3" },
-            fortune: { age: "Фортуночка / Фалтуна 🍀 • 1 год 1 мес. (~16–17 человеческих)", audio: "audio/meow.mp3" },
-            sarabi: { age: "Сараби 👑 • 11 мес. (~14 человеческих)", audio: "audio/meow.mp3" }
+            monika: {
+                age: "Монечка 🌸 • 6 лет (род. ~2020) • ~40 лет по-человечески",
+                img: "images/monika.jpg",
+                audio: "audio/meow_monika.mp3",
+                tapBonus: 1
+            },
+            fortune: {
+                age: "Фортуночка / Фалтуна 🍀 • 1 год 1 мес. (род. 01.10.2025) • ~16–17 лет",
+                img: "images/fortune.jpg",
+                audio: "audio/meow_fortune.mp3",
+                tapBonus: 2
+            },
+            sarabi: {
+                age: "Сараби 👑 • 11 мес. (род. дек. 2025) • ~14 лет",
+                img: "images/sarabi.jpg",
+                audio: "audio/meow_sarabi.mp3",
+                tapBonus: 1
+            }
         };
 
-        let profiles = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[{"name":"Котёнок №1","score":0,"tapPower":1,"rebirthMultiplier":1,"energy":1000,"maxEnergy":1000,"isNightMode":false}]');
-        let p = profiles[0] || { score: 0, tapPower: 1, rebirthMultiplier: 1, energy: 1000, maxEnergy: 1000, isNightMode: false };
-        let currentCatId = "monika";
+        function createFallbackProfile() {
+            return {
+                name: "Котёнок №1",
+                selectedCharacter: "monika",
+                activePhotoSrc: "images/monika.jpg",
+                score: 0,
+                tapPower: 1,
+                passiveIncome: 0,
+                energy: 1000,
+                maxEnergy: 1000,
+                energyRegenRate: 5,
+                rebirthLevel: 0,
+                rebirthMultiplier: 1,
+                isNightMode: false
+            };
+        }
+
+        let profiles = [];
+        try {
+            const raw = JSON.parse(localStorage.getItem(STORAGE_KEY) || "null");
+            if (Array.isArray(raw) && raw.length > 0) profiles = raw;
+        } catch (e) {}
+        if (!profiles.length) profiles = [createFallbackProfile()];
+
+        let activeIdx = parseInt(localStorage.getItem(ACTIVE_IDX_KEY) || "0", 10);
+        if (Number.isNaN(activeIdx) || activeIdx < 0 || activeIdx >= profiles.length) activeIdx = 0;
+
+        let p = { ...createFallbackProfile(), ...profiles[activeIdx] };
+        let currentCatId = p.selectedCharacter || "monika";
+        let boostUntil = 0;
+        let boostCooldownUntil = 0;
+        let lastTapAt = 0;
+        let toastTimer = null;
+
+        function showToast(msg) {
+            const el = document.getElementById("paws-toast");
+            if (!el) return;
+            el.textContent = msg;
+            el.classList.add("visible");
+            clearTimeout(toastTimer);
+            toastTimer = setTimeout(() => el.classList.remove("visible"), 2000);
+        }
 
         function saveState() {
-            profiles[0] = p;
-            localStorage.setItem(STORAGE_KEY, JSON.stringify(profiles));
+            p.selectedCharacter = currentCatId;
+            profiles[activeIdx] = p;
+            try {
+                localStorage.setItem(STORAGE_KEY, JSON.stringify(profiles));
+                localStorage.setItem(ACTIVE_IDX_KEY, String(activeIdx));
+            } catch (e) {}
+        }
+
+        function syncCharButtons() {
+            document.querySelectorAll(".char-avatar-btn").forEach(b => {
+                b.classList.toggle("active", b.dataset.id === currentCatId);
+            });
+            const meta = catMeta[currentCatId] || catMeta.monika;
+            const mainImg = document.getElementById("paws-main-img");
+            if (mainImg) {
+                mainImg.src = (currentCatId === (p.selectedCharacter || "monika") && p.activePhotoSrc)
+                    ? p.activePhotoSrc
+                    : meta.img;
+            }
+            document.getElementById("paws-cat-age").textContent = meta.age;
         }
 
         function renderPaws() {
             const nightBoost = p.isNightMode ? 2 : 1;
-            const effectiveTap = (p.tapPower || 1) * (p.rebirthMultiplier || 1) * nightBoost;
+            const spaceBoost = Date.now() < boostUntil ? 5 : 1;
+            const charBonus = (catMeta[currentCatId] && catMeta[currentCatId].tapBonus) || 0;
+            const mult = (p.rebirthMultiplier || 1) * nightBoost * spaceBoost;
+            const effectiveTap = ((p.tapPower || 1) + charBonus) * mult;
+
+            document.getElementById("paws-profile-name").textContent = p.name || "Котёнок";
             document.getElementById("paws-score").textContent = Math.floor(p.score || 0).toLocaleString();
             document.getElementById("paws-tap-power").textContent = Math.floor(effectiveTap).toLocaleString();
-            document.getElementById("paws-mult").textContent = `x${(p.rebirthMultiplier || 1) * nightBoost}`;
+            document.getElementById("paws-mult").textContent = `x${mult}`;
             document.getElementById("paws-energy").textContent = Math.floor(p.energy ?? 1000);
             document.getElementById("paws-max-energy").textContent = p.maxEnergy ?? 1000;
+            document.getElementById("paws-regen-val").textContent = p.energyRegenRate ?? 5;
+
             const pct = Math.max(0, Math.min(100, ((p.energy ?? 1000) / (p.maxEnergy ?? 1000)) * 100));
             document.getElementById("paws-energy-bar").style.width = `${pct}%`;
             document.getElementById("app-root").classList.toggle("night-mode", Boolean(p.isNightMode));
             document.getElementById("paws-night-btn").textContent = p.isNightMode ? "☀️ День" : "🌙 Ночь";
         }
 
+        function playMeow() {
+            const meow = document.getElementById("meow-audio");
+            if (!meow) return;
+            const targetSrc = (catMeta[currentCatId] && catMeta[currentCatId].audio) || "audio/meow.mp3";
+            if (meow.getAttribute("src") !== targetSrc) {
+                meow.setAttribute("src", targetSrc);
+            }
+            meow.currentTime = 0;
+            meow.play().catch(() => {});
+        }
+
         function doPawTap(x, y) {
-            if ((p.energy ?? 1000) < 1) return;
+            const now = Date.now();
+            if (now - lastTapAt < 35) return;
+            lastTapAt = now;
+
+            if ((p.energy ?? 1000) < 1) {
+                showToast("Хвостик устал — ждём бодрость ⚡");
+                return;
+            }
+
             p.energy = Math.max(0, (p.energy ?? 1000) - 1);
             const nightBoost = p.isNightMode ? 2 : 1;
-            const gain = (p.tapPower || 1) * (p.rebirthMultiplier || 1) * nightBoost;
+            const spaceBoost = Date.now() < boostUntil ? 5 : 1;
+            const charBonus = (catMeta[currentCatId] && catMeta[currentCatId].tapBonus) || 0;
+            const gain = ((p.tapPower || 1) + charBonus) * (p.rebirthMultiplier || 1) * nightBoost * spaceBoost;
             p.score = (p.score || 0) + gain;
 
             const circle = document.getElementById("paws-tap-circle");
             circle.classList.add("tapped");
             setTimeout(() => circle.classList.remove("tapped"), 140);
 
-            const meow = document.getElementById("meow-audio");
-            if (meow) {
-                meow.currentTime = 0;
-                meow.play().catch(() => {});
-            }
+            playMeow();
 
             const floatEl = document.createElement("div");
             floatEl.className = "floating-gain";
@@ -130,10 +231,25 @@
             saveState();
         }
 
-        document.getElementById("paws-tap-circle").addEventListener("click", (e) => doPawTap(e.clientX, e.clientY));
+        const tapCircle = document.getElementById("paws-tap-circle");
+        tapCircle.addEventListener("pointerdown", (e) => {
+            if (e.button !== undefined && e.button !== 0) return;
+            doPawTap(e.clientX, e.clientY);
+        });
+        tapCircle.addEventListener("click", (e) => {
+            if (e.detail === 0) doPawTap(window.innerWidth / 2, window.innerHeight / 2);
+        });
+
         document.addEventListener("keydown", (e) => {
-            if (e.code === "Space" && !e.repeat) {
+            if ((e.code === "Space" || e.key === " ") && !e.repeat) {
                 e.preventDefault();
+                const now = Date.now();
+                if (now >= boostCooldownUntil) {
+                    boostUntil = now + 8000;
+                    boostCooldownUntil = now + 20000;
+                    document.getElementById("paws-log").textContent = "⚡ Турбо-лапка x5 на 8 сек!";
+                    showToast("⚡ Турбо-лапка x5 на 8 сек!");
+                }
                 doPawTap(window.innerWidth / 2, window.innerHeight / 2);
             }
         });
@@ -141,29 +257,38 @@
         document.getElementById("paws-night-btn").addEventListener("click", () => {
             p.isNightMode = !p.isNightMode;
             document.getElementById("paws-log").textContent = p.isNightMode
-                ? "🌙 Ночной режим включён: сила лапки увеличена в 2 раза!"
-                : "☀️ Дневной режим включён.";
+                ? "🌙 Ночной обход включён: сила лапки x2!"
+                : "☀️ Дневной домашний режим включён.";
+            showToast(p.isNightMode ? "🌙 Ночной обход: x2 тап" : "☀️ Дневной режим");
             renderPaws();
             saveState();
         });
 
         document.querySelectorAll(".char-avatar-btn").forEach(btn => {
             btn.addEventListener("click", () => {
-                document.querySelectorAll(".char-avatar-btn").forEach(b => b.classList.remove("active"));
-                btn.classList.add("active");
                 currentCatId = btn.dataset.id;
-                document.getElementById("paws-main-img").src = btn.dataset.img;
-                document.getElementById("paws-cat-age").textContent = catMeta[currentCatId]?.age || btn.dataset.name;
+                p.activePhotoSrc = btn.dataset.img;
+                syncCharButtons();
+                playMeow();
                 document.getElementById("paws-log").textContent = `Выбран персонаж: ${btn.dataset.name}`;
+                renderPaws();
+                saveState();
             });
+        });
+
+        window.addEventListener("beforeunload", saveState);
+        document.addEventListener("visibilitychange", () => {
+            if (document.visibilityState === "hidden") saveState();
         });
 
         setInterval(() => {
             p.energy = Math.min(p.maxEnergy ?? 1000, (p.energy ?? 1000) + (p.energyRegenRate ?? 5));
+            p.score = (p.score || 0) + (p.passiveIncome || 0);
             renderPaws();
             saveState();
         }, 1000);
 
+        syncCharButtons();
         renderPaws();
     </script>
 </body>

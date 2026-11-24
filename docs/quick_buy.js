@@ -1,4 +1,4 @@
-// ================= БЫСТРАЯ ПОКУПКА В ОДИН ТАП (quick_buy.js) v1.0 =================
+// ================= БЫСТРАЯ ПОКУПКА В ОДИН ТАП (quick_buy.js) v1.1 =================
 
 window.TapMonikaQuickBuy = {
     buyMaxAvailable() {
@@ -23,14 +23,18 @@ window.TapMonikaQuickBuy = {
         }
 
         if (boughtCount > 0) {
+            window.TapMonikaSfx?.buySound?.();
             if (typeof renderBusinessCards === "function") renderBusinessCards();
             if (typeof updateDisplay === "function") updateDisplay();
             if (typeof saveCurrentProfile === "function") saveCurrentProfile();
             if (typeof pushLog === "function") {
                 pushLog(`⚡ Авто-прокачка: куплено карточек — ${boughtCount} шт.`);
             }
-        } else {
-            alert("Пока не хватает монеток на доступные карточки 😿");
+            if (typeof showGameToast === "function") {
+                showGameToast(`⚡ Куплено карточек: ${boughtCount} шт.`);
+            }
+        } else if (typeof showGameToast === "function") {
+            showGameToast("Пока не хватает монеток на доступные карточки 😿");
         }
     }
 };
